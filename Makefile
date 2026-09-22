@@ -111,10 +111,19 @@ clean-results: ## Remove saved inspect output
 
 clean-all: clean-data clean-results clean ## Remove data, results, and target/
 
-##@ Day 2 — Query (placeholder)
+##@ Day 2 — Query
 
-query: ## Run query binary (DataFusion + MinIO — Day 2)
+query: ## COUNT(*) on Layout B in MinIO (default)
 	$(CARGO) run -p query
+
+query-count: query ## Alias for default query
+
+query-by-service: ## GROUP BY service on Layout B
+	$(CARGO) run -p query -- --sql "SELECT service, COUNT(*) AS n FROM logs GROUP BY service ORDER BY service"
+
+query-sql: ## Run custom SQL: make query-sql SQL="SELECT ..."
+	@test -n "$(SQL)" || (echo 'Usage: make query-sql SQL="SELECT ..."' && exit 1)
+	$(CARGO) run -p query -- --sql "$(SQL)"
 
 minio-up: ## Start MinIO via docker compose (Day 2)
 	@test -f docker-compose.yml || (echo "docker-compose.yml not found — add it on Day 2" && exit 1)
