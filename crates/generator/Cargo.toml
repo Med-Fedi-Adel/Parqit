@@ -1,0 +1,17 @@
+[package]
+name = "generator"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "generator"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+arrow = "53"
+chrono = "0.4"
+clap = { version = "4", features = ["derive"] }
+parquet = { version = "53", features = ["snap"] }
+rand = "0.8"
+uuid = { version = "1", features = ["v4"] }
