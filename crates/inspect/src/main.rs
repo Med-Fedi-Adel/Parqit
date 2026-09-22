@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use clap::Parser;
 use parquet::file::metadata::ParquetMetaDataReader;
+use parquet::file::statistics::Statistics;
 
 #[derive(Parser)]
 #[command(name = "inspect", about = "Print Parquet footer metadata and column statistics")]
@@ -87,28 +88,19 @@ fn inspect_file(path: &Path) -> anyhow::Result<()> {
     for (idx, row_group) in metadata.row_groups().iter().enumerate() {
         println!("  Row group {idx}: {} rows", row_group.num_rows());
         for column in row_group.columns() {
-            let stats = column.statistics();
+            let column_name = column.column_path().string();
             let encoding = format!("{:?}", column.encodings());
-            match stats {
-                Some(stats)
-                    if stats.min_bytes_opt().is_some() && stats.max_bytes_opt().is_some() =>
-                {
-                    let min = stats.min_bytes_opt().map(byte_preview).unwrap_or_default();
-                    let max = stats.max_bytes_opt().map(byte_preview).unwrap_or_default();
+            match column.statistics() {
+                Some(stats) if has_min_max(stats) => {
+                    let min = format_stat_value(stats, &column_name, true);
+                    let max = format_stat_value(stats, &column_name, false);
                     println!(
-                        "    {} ({encoding}): min={min} max={max} compressed={} bytes",
-                        column.column_path().string(),
+                        "    {column_name} ({encoding}): min={min} max={max} compressed={} bytes",
                         column.compressed_size()
                     );
                 }
-                Some(_) => println!(
-                    "    {} ({encoding}): statistics present but no min/max",
-                    column.column_path().string()
-                ),
-                None => println!(
-                    "    {} ({encoding}): no statistics",
-                    column.column_path().string()
-                ),
+                Some(_) => println!("    {column_name} ({encoding}): statistics present but no min/max"),
+                None => println!("    {column_name} ({encoding}): no statistics"),
             }
         }
     }
@@ -116,6 +108,51 @@ fn inspect_file(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn byte_preview(bytes: &[u8]) -> String {
-    String::from_utf8_lossy(bytes).into_owned()
+fn has_min_max(stats: &Statistics) -> bool {
+    stats.min_bytes_opt().is_some() && stats.max_bytes_opt().is_some()
+}
+
+fn format_stat_value(stats: &Statistics, column_name: &str, is_min: bool) -> String {
+    match stats {
+        Statistics::Int32(s) => {
+            let value = if is_min { s.min_opt() } else { s.max_opt() };
+            value.map(|v| v.to_string()).unwrap_or_else(|| "?".into())
+        }
+        Statistics::Int64(s) => {
+            let value = if is_min { s.min_opt() } else { s.max_opt() };
+            match value {
+                Some(v) if column_name == "timestamp" => format_timestamp_micros(*v),
+                Some(v) => v.to_string(),
+                None => "?".into(),
+            }
+        }
+        Statistics::ByteArray(s) => {
+            let value = if is_min { s.min_opt() } else { s.max_opt() };
+            value
+                .map(|v| String::from_utf8_lossy(v.data()).into_owned())
+                .unwrap_or_else(|| "?".into())
+        }
+        _ => {
+            let bytes = if is_min {
+                stats.min_bytes_opt()
+            } else {
+                stats.max_bytes_opt()
+            };
+            bytes
+                .map(|b| format!("0x{}", hex::encode(b)))
+                .unwrap_or_else(|| "?".into())
+        }
+    }
+}
+
+fn format_timestamp_micros(micros: i64) -> String {
+    chrono::DateTime::from_timestamp_micros(micros)
+        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S%.3f UTC").to_string())
+        .unwrap_or_else(|| micros.to_string())
+}
+
+mod hex {
+    pub fn encode(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{b:02x}")).collect()
+    }
 }
