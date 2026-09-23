@@ -19,6 +19,7 @@ SMOKE_OUTPUT  ?= data/test
 LAYOUT_A      := $(OUTPUT)/layout_a
 LAYOUT_B      := $(OUTPUT)/layout_b
 FLAT_FILE     := $(LAYOUT_B)/part-000.parquet
+JSONL_FILE    := $(OUTPUT)/logs.jsonl
 HIVE_SAMPLE   := $(LAYOUT_A)/date=2026-09-01/hour=14/service=payments/part-000.parquet
 RESULTS_DIR   := results
 METADATA_FILE := $(RESULTS_DIR)/metadata.txt
@@ -147,6 +148,20 @@ query-explain-analyze-hive: ## EXPLAIN ANALYZE tight Hive filter
 query-save-explains: ## Save EXPLAIN output → results/explain/
 	@chmod +x scripts/save-explain.sh
 	@./scripts/save-explain.sh
+
+##@ Day 3 — Benchmarks
+
+export-jsonl: ## Export Layout B Parquet → JSON Lines
+	$(CARGO) run -p benchmark -- export-jsonl --input $(FLAT_FILE) --output $(JSONL_FILE)
+
+bench-compression: ## JSON vs Parquet size table
+	$(CARGO) run -p benchmark -- compression --jsonl $(JSONL_FILE) --flat $(FLAT_FILE) --hive $(LAYOUT_A)
+
+bench-naive: ## Naive JSONL scan (3 runs, median)
+	$(CARGO) run -p benchmark -- naive --file $(JSONL_FILE)
+
+bench-step1: ## Day 3.1: export + compression + naive → results/benchmarks.md
+	$(CARGO) run -p benchmark -- step1 --parquet $(FLAT_FILE) --jsonl $(JSONL_FILE) --hive $(LAYOUT_A)
 
 minio-up: ## Start MinIO via docker compose (Day 2)
 	@test -f docker-compose.yml || (echo "docker-compose.yml not found — add it on Day 2" && exit 1)
