@@ -1,68 +1,155 @@
 # parqit
 
-Mini observability pipeline for learning Arrow, Parquet, and DataFusion — synthetic HTTP logs from generation through columnar storage to SQL query.
+Mini observability pipeline for learning **Arrow**, **Parquet**, and **DataFusion** — synthetic HTTP logs from generation through columnar storage to SQL query.
 
-## Prerequisites
+> **Note:** All data is **synthetic** (5M generated rows). The query patterns mirror real log analytics.
+
+## Architecture
+
+```
+Synthetic generator (Rust)
+        │
+        ▼
+  Arrow RecordBatches          ← in-memory columnar (RAM)
+        │
+        ▼
+  Parquet files (Layout A/B)   ← on-disk columnar + statistics
+        │
+        ▼
+  MinIO (S3-compatible)        ← object storage (disk, remote API)
+        │
+        ▼
+  DataFusion SQL engine        ← reads Parquet → Arrow → execute
+        │
+        ▼
+  Benchmarks + EXPLAIN
+```
+
+**Data flow:** Generator builds **Arrow** batches in RAM, writes **Parquet** to disk, copies to **MinIO**, DataFusion reads Parquet back into **Arrow** to run SQL. See [results/benchmarks.md](results/benchmarks.md) for numbers.
+
+## How columnar search works
+
+Columnar engines don't "search faster" — they **read less data**:
+
+1. **Partition pruning** — skip whole directories (`date=…/hour=…/service=…/`) when the query filters on those keys
+2. **Column projection** — read only the columns referenced in the query (`status_code`, not `trace_id`)
+3. **Row group pruning** — skip row groups using min/max statistics in the Parquet footer
+
+These stack. A selective query on Hive-partitioned data can open **1 file**, read **one column**, and skip row groups that can't match — instead of scanning every row of a JSON file.
+
+## Quick start
+
+### Prerequisites
 
 - Rust (stable)
-- Docker (Day 2 — MinIO)
+- Docker (MinIO)
 
-## Quick start (Day 1)
-
-Generate 5 million synthetic log rows:
+### One-command demo
 
 ```bash
-cargo run -p generator -- --rows 5000000 --output data
+make minio-up          # start MinIO (first time)
+# upload data to MinIO once (see Day 2 upload steps)
+make demo              # inspect → EXPLAIN → query → benchmark summary
 ```
 
-This writes two layouts under `data/`:
-
-- **Layout A (Hive):** `data/layout_a/date=2026-09-01/hour=HH/service=NAME/part-000.parquet` — 120 partitions (24 hours × 5 services)
-- **Layout B (flat):** `data/layout_b/part-000.parquet` — single file, all columns in-file
-
-Inspect Parquet metadata (row groups, min/max statistics, encodings):
+### Day 1 — Generate and inspect
 
 ```bash
-cargo run -p inspect -- data/layout_a --limit 3
-cargo run -p inspect -- data/layout_b/part-000.parquet
+make generate          # 5M rows → data/layout_a + data/layout_b
+make inspect-partition # row groups, stats, encodings
+make data-stats        # file counts and sizes
 ```
 
-### Generator options
+### Day 2 — Query via MinIO
 
 ```bash
-cargo run -p generator -- --help
-
-# Smaller test run
-cargo run -p generator -- --rows 100000 --output data/test
+make minio-up
+make query                       # COUNT(*) on Hive layout
+make query-explain-hive          # show pushdown in EXPLAIN
+make query-both                  # compare logs vs logs_flat
 ```
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--rows` | 5_000_000 | Total log rows |
-| `--output` | `data` | Output directory |
-| `--row-group-size` | 100_000 | Parquet row group size |
-| `--seed` | 42 | RNG seed for reproducibility |
+### Day 3 — Benchmarks
 
-### Schema
+```bash
+make bench-step1       # JSON export + compression + naive baseline
+make bench-step2       # DataFusion benchmarks (requires MinIO + upload)
+cat results/benchmarks.md
+```
 
-| Column | In Layout A file | In Layout B file | Notes |
-|--------|-----------------|------------------|-------|
-| `timestamp` | yes | yes | Microsecond UTC |
-| `service` | path only | yes | Hive partition key in Layout A |
-| `status_code` | yes | yes | ~90% 2xx, ~5% 4xx, ~5% 5xx |
-| `latency_ms` | yes | yes | Higher for errors |
-| `trace_id` | yes | yes | UUID |
-| `http_method` | yes | yes | GET, POST, … |
-| `route` | yes | yes | ~30 API paths |
-| `region` | yes | yes | 4 AWS regions |
+Run `make help` for all targets.
+
+## Benchmark highlights
+
+From [results/benchmarks.md](results/benchmarks.md) (5M synthetic rows, median of 3 runs):
+
+| Scenario | Latency |
+|----------|--------:|
+| Naive JSONL selective scan | 12,582 ms |
+| DataFusion Hive (partition + filter) | **19.8 ms** |
+| Compression JSON → Parquet | **4.18×** |
+
+## Schema
+
+| Column | Layout A (Hive) | Layout B (flat) | Notes |
+|--------|-----------------|-----------------|-------|
+| `timestamp` | in file | in file | Microsecond UTC |
+| `service` | **path only** | in file | Hive partition key |
+| `status_code` | in file | in file | ~90% 2xx, ~5% 4xx, ~5% 5xx |
+| `latency_ms` | in file | in file | Higher for errors |
+| `trace_id` | in file | in file | UUID (high cardinality) |
+| `http_method` | in file | in file | Dictionary-friendly |
+| `route` | in file | in file | ~30 API paths |
+| `region` | in file | in file | 4 AWS regions |
+
+**Layout A:** `data/layout_a/date=2026-09-01/hour=HH/service=NAME/part-000.parquet` (120 partitions)
+
+**Layout B:** `data/layout_b/part-000.parquet` (single file, 50 row groups)
 
 ## Project layout
 
 ```
 crates/
-  generator/   # synthetic data → Arrow → Parquet
-  inspect/     # read Parquet footer metadata
-  query/       # DataFusion + MinIO (Day 2)
+  generator/    # synthetic data → Arrow → Parquet
+  inspect/      # read Parquet footer metadata
+  query/        # DataFusion + MinIO
+  benchmark/    # naive JSON baseline + DataFusion benchmarks
+scripts/
+  demo.sh       # end-to-end interview demo
+  save-explain.sh
+results/
+  benchmarks.md
+  explain/
 ```
 
-See [plan.md](plan.md) for the full build schedule and interview demo plan.
+## Partitioning tradeoffs
+
+**Chosen:** `date/hour/service` Hive-style (120 partitions for 5M rows).
+
+| Benefit | Cost |
+|---------|------|
+| Partition pruning on time + service queries | 120 files to list on full scan |
+| Matches observability query patterns | Small files (~42k rows each) |
+| Complements row group pruning | More metadata overhead vs one big file |
+
+**At real scale:** partition by query patterns (usually time), compact small files, stream ingestion (Kafka → batch writer), add metadata indexes for high-cardinality columns like `trace_id`.
+
+## What I learned
+
+- **Arrow** is the in-memory column format; **Parquet** is the on-disk format; **DataFusion** converts between them during query execution
+- Parquet's power is **reading less** — column projection and partition pruning matter as much as compression
+- Row group statistics enable pushdown but only when min/max ranges are tight enough to skip groups
+- Hive partitioning helps scoped queries but hurts full-table scans (120 files vs 1)
+- Object storage (MinIO/S3) adds latency; pushdown matters even more when I/O is remote
+
+## Interview talk track (5 min)
+
+1. **Inspect** — show row groups, dictionary encoding, min/max stats
+2. **EXPLAIN** — point at `ParquetExec`: one file, `projection=[status_code]`, `pruning_predicate`
+3. **Benchmarks** — 4.18× compression, ~635× faster than naive JSON on selective query
+
+Opening: *"I built a small pipeline with the stack your query team uses — Arrow, Parquet, MinIO, DataFusion — on synthetic observability logs."*
+
+Closing: *"The takeaway: columnar engines win by reading less. At scale I'd add streaming ingestion and smarter partitioning keyed on query patterns."*
+
+See [plan.md](plan.md) for the full schedule and follow-up Q&A.

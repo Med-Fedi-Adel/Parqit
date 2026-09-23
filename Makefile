@@ -24,11 +24,12 @@ HIVE_SAMPLE   := $(LAYOUT_A)/date=2026-09-01/hour=14/service=payments/part-000.p
 RESULTS_DIR   := results
 METADATA_FILE := $(RESULTS_DIR)/metadata.txt
 
-.PHONY: help build check test clean \
+.PHONY: help build check test clean demo \
         generate generate-smoke \
         inspect inspect-flat inspect-hive inspect-partition inspect-save \
         data-stats clean-data clean-results clean-all \
-        query minio-up minio-down minio-logs
+        query minio-up minio-down minio-logs \
+        bench-step1 bench-step2 export-jsonl bench-compression bench-naive
 
 ##@ Help
 
@@ -165,6 +166,12 @@ bench-step1: ## Day 3.1: export + compression + naive → results/benchmarks.md
 
 bench-step2: ## Day 3.2: DataFusion benchmarks via MinIO
 	$(CARGO) run -p benchmark -- step2
+
+bench-all: bench-step1 bench-step2 ## Run full Day 3 benchmark suite
+
+demo: ## End-to-end interview demo (inspect + EXPLAIN + query + benchmarks)
+	@chmod +x scripts/demo.sh
+	@./scripts/demo.sh
 
 minio-up: ## Start MinIO via docker compose (Day 2)
 	@test -f docker-compose.yml || (echo "docker-compose.yml not found — add it on Day 2" && exit 1)
