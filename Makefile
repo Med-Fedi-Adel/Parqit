@@ -69,12 +69,25 @@ generate: ## Generate full dataset (Layout A + B) → $(OUTPUT)
 		--row-group-size $(ROW_GROUP_SIZE) \
 		--seed $(SEED)
 
-generate-smoke: ## Quick smoke test ($(SMOKE_ROWS) rows) → $(SMOKE_OUTPUT)
+generate-smoke: ## Quick legacy smoke test ($(SMOKE_ROWS) rows) → $(SMOKE_OUTPUT)
 	$(CARGO) run -p generator -- \
 		--rows $(SMOKE_ROWS) \
 		--output $(SMOKE_OUTPUT) \
 		--row-group-size $(ROW_GROUP_SIZE) \
 		--seed $(SEED)
+
+generate-v3-smoke: ## v3 smoke tier (10M rows, 1 day, micro-batches) → data/raw
+	$(CARGO) run -p generator -- --tier smoke --output $(OUTPUT)
+
+generate-v3-standard: ## v3 standard tier (200M rows, 7 days) → data/raw
+	$(CARGO) run -p generator -- --tier standard --output $(OUTPUT)
+
+generate-v3-stress: ## v3 stress tier (1B rows, 14 days) → data/raw
+	$(CARGO) run -p generator -- --tier stress --output $(OUTPUT)
+
+generate-v3-dev: ## v3 tiny dev run (100k rows) → data/test
+	$(CARGO) run -p generator -- --tier smoke --rows 100000 --output data/test \
+		--incident "day=1,hour=14-14,service=payments,error-rate=0.25"
 
 ##@ Day 1 — Inspect
 
@@ -104,6 +117,9 @@ data-stats: ## Print parquet file counts and disk usage
 	@echo "Layout B (flat):"
 	@ls -lh $(FLAT_FILE) 2>/dev/null || echo "  (not generated yet)"
 	@du -sh $(LAYOUT_B) 2>/dev/null || true
+	@echo "Raw (v3):"
+	@find $(OUTPUT)/raw -name '*.parquet' 2>/dev/null | wc -l | xargs -I{} echo "  files: {}"
+	@du -sh $(OUTPUT)/raw 2>/dev/null || echo "  (not generated yet)"
 
 clean-data: ## Remove generated parquet files
 	rm -rf $(OUTPUT)

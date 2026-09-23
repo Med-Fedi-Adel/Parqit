@@ -90,4 +90,4 @@ docker-compose.yml      Makefile
 
 Went with `date/hour/service` for layout A. Fits "errors in the last hour for payments" without creating thousands of tiny files. Tradeoff: anything that touches the whole day pays for 120 file opens. At larger scale I'd partition primarily by time, run compaction on small parts, and leave high-cardinality lookups (`trace_id`) to something other than folder names.
 
-More background in [tech_spec.md](tech_spec.md).
+More background in [tech_spec.md](tech_spec.md). Planned v3 (production scale, ingest sprawl, compaction, concurrent workloads): [tech_spec_v3.md](tech_spec_v3.md).

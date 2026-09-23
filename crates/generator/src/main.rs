@@ -1,49 +1,46 @@
+mod config;
 mod generate;
+mod raw_layout;
 mod schema;
 mod write;
 
-use std::path::PathBuf;
-
 use anyhow::Context;
 use clap::Parser;
-
-#[derive(Parser)]
-#[command(name = "generator", about = "Generate synthetic observability logs")]
-struct Args {
-    /// Total number of log rows to generate
-    #[arg(long, default_value_t = 5_000_000)]
-    rows: usize,
-
-    /// Output root directory
-    #[arg(long, default_value = "data")]
-    output: PathBuf,
-
-    /// Parquet row group size
-    #[arg(long, default_value_t = 100_000)]
-    row_group_size: usize,
-
-    /// RNG seed for reproducible datasets
-    #[arg(long, default_value_t = 42)]
-    seed: u64,
-}
+use config::{Args, ResolvedConfig};
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-    let layout_a = args.output.join("layout_a");
-    let layout_b = args.output.join("layout_b");
+    let config = ResolvedConfig::from_args(args)?;
 
-    println!("Generating {} rows...", args.rows);
+    if config.is_legacy() {
+        run_legacy(&config)?;
+    } else {
+        raw_layout::generate_raw_layout(&config)?;
+    }
+
+    Ok(())
+}
+
+fn run_legacy(config: &ResolvedConfig) -> anyhow::Result<()> {
+    let layout_a = config.output.join("layout_a");
+    let layout_b = config.output.join("layout_b");
+
+    println!("Generating {} rows (legacy v2)...", config.rows);
     println!("  Layout A (Hive): {}/date=…/hour=…/service=…/", layout_a.display());
     println!("  Layout B (flat): {}/", layout_b.display());
 
-    let hive_stats =
-        generate::generate_hive_layout(&layout_a, args.rows, args.row_group_size, args.seed)
-            .context("failed to write hive layout")?;
+    let hive_stats = generate::generate_hive_layout(
+        &layout_a,
+        config.rows,
+        config.row_group_size,
+        config.seed,
+    )
+    .context("failed to write hive layout")?;
     let flat_stats = generate::generate_flat_layout(
         &layout_b,
-        args.rows,
-        args.row_group_size,
-        args.seed + 1,
+        config.rows,
+        config.row_group_size,
+        config.seed + 1,
     )
     .context("failed to write flat layout")?;
 
