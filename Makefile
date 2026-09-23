@@ -113,17 +113,40 @@ clean-all: clean-data clean-results clean ## Remove data, results, and target/
 
 ##@ Day 2 — Query
 
-query: ## COUNT(*) on Layout B in MinIO (default)
+query: ## COUNT(*) on Layout A (Hive) in MinIO
 	$(CARGO) run -p query
 
-query-count: query ## Alias for default query
+query-flat: ## COUNT(*) on Layout B (flat)
+	$(CARGO) run -p query -- --layout flat --path layout_b
 
-query-by-service: ## GROUP BY service on Layout B
-	$(CARGO) run -p query -- --sql "SELECT service, COUNT(*) AS n FROM logs GROUP BY service ORDER BY service"
+query-hive-errors: ## Error count by service (Layout A, partition + filter)
+	$(CARGO) run -p query -- --sql "SELECT service, COUNT(*) AS errors FROM logs WHERE status_code >= 500 AND date = '2026-09-01' GROUP BY service ORDER BY service"
+
+query-hive-partition: ## Tight partition filter (hour 14, payments)
+	$(CARGO) run -p query -- --sql "SELECT COUNT(*) AS n FROM logs WHERE date = '2026-09-01' AND hour = '14' AND service = 'payments'"
+
+query-explain-hive: ## EXPLAIN selective Hive query
+	$(CARGO) run -p query -- --explain --sql "SELECT service, COUNT(*) AS errors FROM logs WHERE status_code >= 500 AND date = '2026-09-01' AND hour = '14' AND service = 'payments' GROUP BY service"
+
+query-explain-flat: ## EXPLAIN same filter on Layout B (compare plans)
+	$(CARGO) run -p query -- --layout flat --path layout_b --explain --sql "SELECT COUNT(*) AS n FROM logs WHERE status_code >= 500 AND service = 'payments'"
 
 query-sql: ## Run custom SQL: make query-sql SQL="SELECT ..."
 	@test -n "$(SQL)" || (echo 'Usage: make query-sql SQL="SELECT ..."' && exit 1)
 	$(CARGO) run -p query -- --sql "$(SQL)"
+
+query-both: ## Register logs + logs_flat, compare row counts
+	$(CARGO) run -p query -- --both --sql "SELECT 'hive' AS layout, COUNT(*) AS n FROM logs UNION ALL SELECT 'flat', COUNT(*) FROM logs_flat"
+
+query-latency: ## Top slow routes for api service (Hive)
+	$(CARGO) run -p query -- --sql "SELECT route, AVG(latency_ms) AS avg_ms FROM logs WHERE service = 'api' AND date = '2026-09-01' GROUP BY route ORDER BY avg_ms DESC LIMIT 10"
+
+query-explain-analyze-hive: ## EXPLAIN ANALYZE tight Hive filter
+	$(CARGO) run -p query -- --explain-analyze --sql "SELECT COUNT(*) AS n FROM logs WHERE date = '2026-09-01' AND hour = '14' AND service = 'payments' AND status_code >= 500"
+
+query-save-explains: ## Save EXPLAIN output → results/explain/
+	@chmod +x scripts/save-explain.sh
+	@./scripts/save-explain.sh
 
 minio-up: ## Start MinIO via docker compose (Day 2)
 	@test -f docker-compose.yml || (echo "docker-compose.yml not found — add it on Day 2" && exit 1)

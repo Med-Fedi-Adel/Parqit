@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use clap::Parser;
+use arrow::datatypes::DataType;
+use clap::{Parser, ValueEnum};
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
@@ -9,6 +10,14 @@ use datafusion::datasource::listing::{
 use datafusion::prelude::*;
 use object_store::aws::AmazonS3Builder;
 use url::Url;
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Layout {
+    /// Single directory, all columns stored in Parquet files (Layout B)
+    Flat,
+    /// Hive-style paths: date=…/hour=…/service=…/ (Layout A)
+    Hive,
+}
 
 #[derive(Parser)]
 #[command(
@@ -32,17 +41,33 @@ struct Args {
     #[arg(long, default_value = "logs")]
     bucket: String,
 
-    /// Object prefix inside the bucket (Layout B by default)
-    #[arg(long, default_value = "layout_b")]
+    /// Object prefix inside the bucket (ignored when --both)
+    #[arg(long, default_value = "layout_a")]
     path: String,
 
-    /// SQL table name
+    /// Table layout: flat (Layout B) or hive (Layout A)
+    #[arg(long, value_enum, default_value_t = Layout::Hive)]
+    layout: Layout,
+
+    /// Register both logs (Hive / layout_a) and logs_flat (flat / layout_b)
+    #[arg(long, default_value_t = false)]
+    both: bool,
+
+    /// SQL table name (ignored when --both for registration; use logs or logs_flat in SQL)
     #[arg(long, default_value = "logs")]
     table: String,
 
     /// SQL query to execute
     #[arg(long, default_value = "SELECT COUNT(*) AS row_count FROM logs")]
     sql: String,
+
+    /// Print EXPLAIN plan
+    #[arg(long, default_value_t = false)]
+    explain: bool,
+
+    /// Print EXPLAIN ANALYZE plan (includes runtime metrics)
+    #[arg(long, default_value_t = false)]
+    explain_analyze: bool,
 }
 
 #[tokio::main]
@@ -51,13 +76,52 @@ async fn main() -> anyhow::Result<()> {
 
     let ctx = SessionContext::new();
     register_minio_store(&ctx, &args)?;
-    register_parquet_table(&ctx, &args).await?;
 
-    println!("Running: {}", args.sql);
-    let df = ctx.sql(&args.sql).await.context("execute SQL")?;
+    if args.both {
+        register_table(
+            &ctx,
+            &args.bucket,
+            "layout_a",
+            Layout::Hive,
+            "logs",
+        )
+        .await?;
+        register_table(
+            &ctx,
+            &args.bucket,
+            "layout_b",
+            Layout::Flat,
+            "logs_flat",
+        )
+        .await?;
+        println!("Registered tables: logs (Hive layout_a), logs_flat (flat layout_b)");
+    } else {
+        register_table(
+            &ctx,
+            &args.bucket,
+            &args.path,
+            args.layout,
+            &args.table,
+        )
+        .await?;
+    }
+
+    let sql = build_sql(&args);
+    println!("Running: {sql}");
+    let df = ctx.sql(&sql).await.context("execute SQL")?;
     df.show().await.context("print results")?;
 
     Ok(())
+}
+
+fn build_sql(args: &Args) -> String {
+    if args.explain_analyze {
+        format!("EXPLAIN ANALYZE {}", args.sql)
+    } else if args.explain {
+        format!("EXPLAIN {}", args.sql)
+    } else {
+        args.sql.clone()
+    }
 }
 
 fn register_minio_store(ctx: &SessionContext, args: &Args) -> anyhow::Result<()> {
@@ -81,26 +145,37 @@ fn register_minio_store(ctx: &SessionContext, args: &Args) -> anyhow::Result<()>
     Ok(())
 }
 
-async fn register_parquet_table(ctx: &SessionContext, args: &Args) -> anyhow::Result<()> {
-    let table_url = ListingTableUrl::parse(format!(
-        "s3://{}/{}/",
-        args.bucket,
-        args.path.trim_end_matches('/')
-    ))
-    .context("parse listing table URL")?;
+async fn register_table(
+    ctx: &SessionContext,
+    bucket: &str,
+    path: &str,
+    layout: Layout,
+    table_name: &str,
+) -> anyhow::Result<()> {
+    let table_url = ListingTableUrl::parse(format!("s3://{bucket}/{}/", path.trim_end_matches('/')))
+        .with_context(|| format!("parse listing table URL for {table_name}"))?;
 
-    let listing_options =
+    let mut listing_options =
         ListingOptions::new(Arc::new(ParquetFormat::default())).with_file_extension(".parquet");
+
+    if matches!(layout, Layout::Hive) {
+        listing_options = listing_options.with_table_partition_cols(vec![
+            ("date".into(), DataType::Utf8),
+            ("hour".into(), DataType::Utf8),
+            ("service".into(), DataType::Utf8),
+        ]);
+    }
 
     let config = ListingTableConfig::new(table_url)
         .with_listing_options(listing_options)
         .infer_schema(&ctx.state())
         .await
-        .context("infer schema from Parquet footer")?;
+        .with_context(|| format!("infer schema for table {table_name}"))?;
 
-    let table = ListingTable::try_new(config).context("create listing table")?;
-    ctx.register_table(&args.table, Arc::new(table))
-        .context("register table")?;
+    let table = ListingTable::try_new(config)
+        .with_context(|| format!("create listing table {table_name}"))?;
+    ctx.register_table(table_name, Arc::new(table))
+        .with_context(|| format!("register table {table_name}"))?;
 
     Ok(())
 }
