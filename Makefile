@@ -163,6 +163,9 @@ bench-naive: ## Naive JSONL scan (3 runs, median)
 bench-step1: ## Day 3.1: export + compression + naive → results/benchmarks.md
 	$(CARGO) run -p benchmark -- step1 --parquet $(FLAT_FILE) --jsonl $(JSONL_FILE) --hive $(LAYOUT_A)
 
+bench-step2: ## Day 3.2: DataFusion benchmarks via MinIO
+	$(CARGO) run -p benchmark -- step2
+
 minio-up: ## Start MinIO via docker compose (Day 2)
 	@test -f docker-compose.yml || (echo "docker-compose.yml not found — add it on Day 2" && exit 1)
 	docker compose up -d

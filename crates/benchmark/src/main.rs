@@ -1,4 +1,5 @@
 mod compression;
+mod datafusion_bench;
 mod export;
 mod naive;
 
@@ -8,7 +9,10 @@ use anyhow::Context;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "benchmark", about = "Day 3 benchmarks — naive baseline and compression")]
+#[command(
+    name = "benchmark",
+    about = "Day 3 benchmarks — naive baseline and compression"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -64,9 +68,28 @@ enum Command {
         #[arg(long, default_value_t = false)]
         skip_export: bool,
     },
+
+    /// Step 3.2: DataFusion benchmarks against MinIO
+    Step2 {
+        #[arg(long, default_value = "http://127.0.0.1:9000")]
+        endpoint: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        access_key: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        secret_key: String,
+
+        #[arg(long, default_value = "logs")]
+        bucket: String,
+
+        #[arg(long, default_value_t = 3)]
+        runs: usize,
+    },
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::ExportJsonl { input, output } => cmd_export(&input, &output),
@@ -79,6 +102,13 @@ fn main() -> anyhow::Result<()> {
             runs,
             skip_export,
         } => cmd_step1(&parquet, &jsonl, &hive, runs, skip_export),
+        Command::Step2 {
+            endpoint,
+            access_key,
+            secret_key,
+            bucket,
+            runs,
+        } => cmd_step2(endpoint, access_key, secret_key, bucket, runs).await,
     }
 }
 
@@ -86,7 +116,10 @@ fn cmd_export(input: &PathBuf, output: &PathBuf) -> anyhow::Result<()> {
     println!("Exporting {} → {}", input.display(), output.display());
     let rows = export::parquet_to_jsonl(input, output)?;
     let bytes = std::fs::metadata(output)?.len();
-    println!("Exported {rows} rows ({})", compression::format_bytes(bytes));
+    println!(
+        "Exported {rows} rows ({})",
+        compression::format_bytes(bytes)
+    );
     Ok(())
 }
 
@@ -174,10 +207,47 @@ fn print_compression_table(report: &compression::SizeReport) {
         "  Parquet hive:   {}",
         compression::format_bytes(report.parquet_hive_bytes)
     );
-    println!(
-        "  Ratio JSON/flat: {:.2}x",
-        report.json_vs_flat_ratio()
-    );
+    println!("  Ratio JSON/flat: {:.2}x", report.json_vs_flat_ratio());
+}
+
+async fn cmd_step2(
+    endpoint: String,
+    access_key: String,
+    secret_key: String,
+    bucket: String,
+    runs: usize,
+) -> anyhow::Result<()> {
+    println!("DataFusion benchmarks via MinIO ({endpoint}, bucket={bucket})");
+    println!("Median of {runs} runs:\n");
+
+    let config = datafusion_bench::MinioConfig {
+        endpoint,
+        access_key,
+        secret_key,
+        bucket,
+    };
+    let results = datafusion_bench::run_all(&config, runs).await?;
+
+    let step2_md = datafusion_bench::format_step2_markdown(&results, runs);
+    let out_path = PathBuf::from("results/benchmarks.md");
+    let existing = std::fs::read_to_string(&out_path).unwrap_or_else(|_| {
+        "# Benchmark Results (Day 3)\n\n_Run `make bench-step1` first for compression + naive baseline._\n".to_string()
+    });
+    let combined = if existing.contains("## Step 3.2") {
+        existing
+            .split("## Step 3.2")
+            .next()
+            .unwrap_or(&existing)
+            .to_string()
+            + &step2_md
+    } else {
+        existing + &step2_md
+    };
+    std::fs::write(&out_path, combined).with_context(|| format!("write {}", out_path.display()))?;
+
+    println!();
+    println!("Appended results → {}", out_path.display());
+    Ok(())
 }
 
 fn format_step1_markdown(

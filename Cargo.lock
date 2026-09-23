@@ -409,9 +409,13 @@ dependencies = [
  "anyhow",
  "arrow",
  "clap",
+ "datafusion",
+ "object_store",
  "parquet",
  "serde",
  "serde_json",
+ "tokio",
+ "url",
 ]
 
 [[package]]
