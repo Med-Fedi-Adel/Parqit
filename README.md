@@ -115,7 +115,7 @@ crates/
   query/        # DataFusion + MinIO
   benchmark/    # naive JSON baseline + DataFusion benchmarks
 scripts/
-  demo.sh       # end-to-end interview demo
+  demo.sh       # end-to-end demo
   save-explain.sh
 results/
   benchmarks.md
@@ -142,14 +142,4 @@ results/
 - Hive partitioning helps scoped queries but hurts full-table scans (120 files vs 1)
 - Object storage (MinIO/S3) adds latency; pushdown matters even more when I/O is remote
 
-## Interview talk track (5 min)
-
-1. **Inspect**: show row groups, dictionary encoding, min/max stats
-2. **EXPLAIN**: point at `ParquetExec`: one file, `projection=[status_code]`, `pruning_predicate`
-3. **Benchmarks**: 4.18× compression, ~635× faster than naive JSON on selective query
-
-Opening: *"I built a small pipeline with the stack your query team uses: Arrow, Parquet, MinIO, and DataFusion on synthetic observability logs."*
-
-Closing: *"The takeaway: columnar engines win by reading less. At scale I'd add streaming ingestion and smarter partitioning keyed on query patterns."*
-
-See [tech_spec.md](tech_spec.md) for the full schedule and follow-up Q&A.
+See [tech_spec.md](tech_spec.md) for architecture notes and build schedule.

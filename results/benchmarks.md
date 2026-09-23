@@ -4,7 +4,7 @@ _Synthetic dataset, 5 million HTTP log rows._
 
 ## Summary
 
-**Headline numbers for the interview:**
+**Headline numbers:**
 
 | Metric | Value |
 |--------|------:|

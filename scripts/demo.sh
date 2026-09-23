@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end interview demo — synthetic logs → Parquet → MinIO → DataFusion
+# End-to-end demo: synthetic logs → Parquet → MinIO → DataFusion
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

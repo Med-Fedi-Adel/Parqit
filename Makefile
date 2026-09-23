@@ -169,7 +169,7 @@ bench-step2: ## Day 3.2: DataFusion benchmarks via MinIO
 
 bench-all: bench-step1 bench-step2 ## Run full Day 3 benchmark suite
 
-demo: ## End-to-end interview demo (inspect + EXPLAIN + query + benchmarks)
+demo: ## End-to-end demo (inspect + EXPLAIN + query + benchmarks)
 	@chmod +x scripts/demo.sh
 	@./scripts/demo.sh
 

@@ -1,10 +1,10 @@
 # Mini Observability Pipeline: Project Plan (v2)
 
-**Goal:** Build a small, self-contained pipeline that mirrors Tsuga's core architecture (ingest → process → index → query) using the exact tools from the job description: Rust, Arrow, Parquet, object storage, and DataFusion. The purpose is hands-on familiarity with columnar storage and query execution ahead of the CEO conversation, not to rebuild Tsuga.
+**Goal:** Build a small, self-contained pipeline that mirrors Tsuga's core architecture (ingest → process → index → query) using Rust, Arrow, Parquet, object storage, and DataFusion. The purpose is hands-on familiarity with columnar storage and query execution, not to rebuild Tsuga.
 
 **Scope:** Synthetic dataset, single machine, local object storage (MinIO). No dependency on any existing project.
 
-**Timeline:** Tue Sep 22 → Sun Sep 28 (6 days, with Sunday as buffer / demo rehearsal).
+**Timeline:** Tue Sep 22 → Sun Sep 28 (6 days, with Sunday as buffer).
 
 **Repo name:** `parqit`, Parquet + query + it runs.
 
@@ -14,7 +14,7 @@
 |----------|--------|
 | Dataset size | **5 million rows** |
 | Schema | **8 columns:** `timestamp`, `service`, `status_code`, `latency_ms`, `trace_id`, `http_method`, `route`, `region` |
-| Enhancements | **All 9 kept** (metadata inspect, partitioning A/B, selectivity ladder, projection demo, workspace, demo script, richer schema, talk track) |
+| Enhancements | **All 8 kept** (metadata inspect, partitioning A/B, selectivity ladder, projection demo, workspace, demo script, richer schema) |
 | Vortex | **Skipped for now**; can revisit if time allows after Day 4 |
 
 | Decision | Status |
@@ -151,13 +151,13 @@ parqit/
 └── README.md
 ```
 
-**Why:** Clean separation mirrors real pipeline stages. Easier to demo one piece at a time to the CEO.
+**Why:** Clean separation mirrors real pipeline stages. Easier to demo one piece at a time.
 
 ### 6. One-command demo script (medium value, ~30 min)
 
 `./scripts/demo.sh` starts MinIO, uploads data, runs 3 queries with `EXPLAIN`, and prints the benchmark table.
 
-**Why:** Interview demos fail when you type live. A script guarantees reproducible numbers.
+**Why:** Live demos fail when you type commands ad hoc. A script guarantees reproducible numbers.
 
 ### 7. Richer synthetic schema (low effort, high demo value)
 
@@ -178,13 +178,6 @@ http_method, route, region
 Repeat the dataset in Vortex format. Compare compression ratio and query latency against Parquet.
 
 **Status:** Skipped for now. Revisit only if Days 1–4 finish early.
-
-### 9. CEO talk track (zero code, high value)
-
-A short section in the README: "If I had 5 minutes, I'd show…" with 3 slides worth of narrative.
-
-**Why:** The code proves you can build; the talk track proves you understand why.
-
 
 ## Architecture
 
@@ -266,7 +259,7 @@ Synthetic data generator (Rust + rand)
 
 ## Day 3: Benchmarks + selectivity + projection
 
-**Focus:** Quantify why columnar wins. This is the CEO demo core.
+**Focus:** Quantify why columnar wins.
 
 - [ ] Generate equivalent JSON/CSV dataset (same rows, for naive baseline)
 - [ ] Benchmark harness (simple: `Instant::now()` + run N times, report median):
@@ -289,7 +282,7 @@ Synthetic data generator (Rust + rand)
 - How much does partition pruning add on top of row group skipping?
 - What's the S3 overhead vs. local disk for the same query?
 
-**Deliverable:** Benchmark numbers you can quote in the interview.
+**Deliverable:** Benchmark numbers in `results/benchmarks.md`.
 
 
 ## Day 4: Polish, README, demo script
@@ -315,53 +308,7 @@ Vortex deferred. Use this day for anything that slipped, or go deeper:
 
 - [ ] Re-run benchmarks, tighten numbers
 - [ ] Add local-disk vs MinIO comparison (S3 overhead story)
-- [ ] Rehearse talk track once
 - [ ] (Optional) Vortex comparison if days 1–4 finished early
-
-
-## Day 6 (Sun Sep 28): CEO rehearsal
-
-- [ ] Run `./scripts/demo.sh` end-to-end twice and fix anything flaky
-- [ ] Prepare 5-minute talk track (see below)
-- [ ] Anticipate 3 follow-up questions (see below)
-- [ ] Push final repo, have URL ready
-
-
-## What to show the CEO (5-minute talk track)
-
-**Opening (30 sec):**
-> "After the HR round I wanted hands-on time with the stack your query team uses, so I built a small observability pipeline: synthetic logs → Arrow → Parquet → MinIO → DataFusion. It's synthetic data, but the query patterns mirror real log analytics."
-
-**Demo (3 min):**
-1. Show `inspect` output: row groups, column stats, dictionary encoding
-2. Run selective query, show `EXPLAIN`: point at row group pruning
-3. Show benchmark table: naive scan vs. pushdown at different selectivities
-
-**Closing (1 min):**
-> "The main takeaway: columnar engines win by reading less. Row group statistics and partition layout determine how much. At real scale I'd add streaming ingestion, a smarter partitioning strategy keyed on query patterns, and metadata indexing for high-cardinality columns like trace_id."
-
-**Numbers to have memorized:**
-- Compression ratio (raw → Parquet)
-- Naive scan vs. pushdown latency at ~5% selectivity
-- Partitioned vs. flat layout latency delta
-
-
-## Follow-up questions to prepare for
-
-1. **"What happens if Parquet statistics are wrong or missing?"**
-   → Engine falls back to reading the row group anyway; correct results, no pruning benefit. Statistics are best-effort hints.
-
-2. **"Why partition by time vs. service?"**
-   → Time matches the most common query pattern (recent logs). Service partitioning helps when queries are scoped to one service. Too many partitions → small files → metadata overhead.
-
-3. **"How would this change at 100x scale?"**
-   → Streaming ingestion (Kafka → batch writer), compaction of small files, distributed query coordinator, column-specific indexes for high-cardinality lookups (trace_id), possibly hot/cold tiering in object storage.
-
-4. **"Why Arrow as an intermediate format?"**
-   → Zero-copy sharing between process and query stages; canonical columnar layout that Parquet, DataFusion, and Flight all speak.
-
-5. **"What's the difference between predicate pushdown and partition pruning?"**
-   → Partition pruning skips whole files/directories based on partition column values. Predicate pushdown skips row groups within a file based on column statistics. Both reduce I/O; they stack.
 
 
 ## Out of scope (don't build)
@@ -379,7 +326,7 @@ Vortex deferred. Use this day for anything that slipped, or go deeper:
 |----------|--------|-----------|
 | Dataset size | **5M rows** | Enough to see latency gaps; generates in minutes |
 | Schema | **8 columns** | Realistic observability shape; dictionary encoding demo |
-| Enhancements | **All kept** | Maximize interview prep value |
+| Enhancements | **All kept** | Maximize learning and demo value |
 | Vortex | **Deferred** | Focus on core stack first |
 | Row group size | TBD (suggest 100k) | Smaller = finer pruning; larger = better compression |
 | Partition scheme | **`date/hour/service`** (option B) | ~120 folders; matches observability query patterns |
@@ -397,5 +344,4 @@ Vortex deferred. Use this day for anything that slipped, or go deeper:
 | Benchmarks | 2-way (naive vs. pushdown) | 6-scenario ladder + projection |
 | Schema | 5 columns | 8 columns ( richer observability shape) |
 | Project structure | Single binary | Cargo workspace |
-| Demo | Manual | Scripted + talk track |
-| CEO prep | One-liner | 5-min talk track + Q&A prep |
+| Demo | Manual | Scripted (`scripts/demo.sh`) |
