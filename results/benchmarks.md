@@ -1,6 +1,6 @@
 # Benchmark Results (Day 3)
 
-_Synthetic dataset — 5 million HTTP log rows._
+_Synthetic dataset, 5 million HTTP log rows._
 
 ## Summary
 
@@ -15,17 +15,16 @@ _Synthetic dataset — 5 million HTTP log rows._
 
 **Three optimizations stacking:**
 
-1. **Partition pruning** — Hive opens 1 of 120 files when `date`, `hour`, `service` are filtered
-2. **Column projection** — narrow query reads ~48 KB of `status_code`; wide query with `trace_id` is ~3.4× slower
-3. **Row group statistics** — Parquet footer min/max enable pushdown (limited here because 2xx and 5xx share row groups)
+1. **Partition pruning**: Hive opens 1 of 120 files when `date`, `hour`, `service` are filtered
+2. **Column projection**: narrow query reads ~48 KB of `status_code`; wide query with `trace_id` is ~3.4× slower
+3. **Row group statistics**: Parquet footer min/max enable pushdown (limited here because 2xx and 5xx share row groups)
 
-**Key tradeoff:** Hive full scan (56 ms) is slower than flat (5 ms) because listing 120 files has overhead. Partitioning wins when queries match partition keys — it loses when you scan everything.
+**Key tradeoff:** Hive full scan (56 ms) is slower than flat (5 ms) because listing 120 files has overhead. Partitioning wins when queries match partition keys, but it loses when you scan everything.
 
-**One-liner:** Columnar engines win by reading less — not by searching faster.
+**One-liner:** Columnar engines win by reading less, not by searching faster.
 
----
 
-## Step 3.1 — Compression + naive baseline
+## Step 3.1: Compression + naive baseline
 
 | Format | Size |
 |--------|------|
@@ -41,9 +40,9 @@ _Synthetic dataset — 5 million HTTP log rows._
 | Full scan | 12310.6 | 5000000 |
 | Selective (`status_code >= 500`) | 12582.2 | 250284 matched |
 
-_Note: naive scan reads and parses every line even when filtering — no pushdown._
+_Note: naive scan reads and parses every line even when filtering; no pushdown._
 
-## Step 3.2 — DataFusion via MinIO (median of 3 runs)
+## Step 3.2: DataFusion via MinIO (median of 3 runs)
 
 | Scenario | Latency (ms) | vs naive selective |
 |----------|-------------:|-------------------:|

@@ -1,6 +1,6 @@
 # parqit
 
-Mini observability pipeline for learning **Arrow**, **Parquet**, and **DataFusion** — synthetic HTTP logs from generation through columnar storage to SQL query.
+Mini observability pipeline for learning **Arrow**, **Parquet**, and **DataFusion** on synthetic HTTP logs from generation through columnar storage to SQL query.
 
 > **Note:** All data is **synthetic** (5M generated rows). The query patterns mirror real log analytics.
 
@@ -29,13 +29,13 @@ Synthetic generator (Rust)
 
 ## How columnar search works
 
-Columnar engines don't "search faster" — they **read less data**:
+Columnar engines don't "search faster"; they **read less data**:
 
-1. **Partition pruning** — skip whole directories (`date=…/hour=…/service=…/`) when the query filters on those keys
-2. **Column projection** — read only the columns referenced in the query (`status_code`, not `trace_id`)
-3. **Row group pruning** — skip row groups using min/max statistics in the Parquet footer
+1. **Partition pruning**: skip whole directories (`date=…/hour=…/service=…/`) when the query filters on those keys
+2. **Column projection**: read only the columns referenced in the query (`status_code`, not `trace_id`)
+3. **Row group pruning**: skip row groups using min/max statistics in the Parquet footer
 
-These stack. A selective query on Hive-partitioned data can open **1 file**, read **one column**, and skip row groups that can't match — instead of scanning every row of a JSON file.
+These stack. A selective query on Hive-partitioned data can open **1 file**, read **one column**, and skip row groups that can't match, instead of scanning every row of a JSON file.
 
 ## Quick start
 
@@ -52,7 +52,7 @@ make minio-up          # start MinIO (first time)
 make demo              # inspect → EXPLAIN → query → benchmark summary
 ```
 
-### Day 1 — Generate and inspect
+### Day 1: Generate and inspect
 
 ```bash
 make generate          # 5M rows → data/layout_a + data/layout_b
@@ -60,7 +60,7 @@ make inspect-partition # row groups, stats, encodings
 make data-stats        # file counts and sizes
 ```
 
-### Day 2 — Query via MinIO
+### Day 2: Query via MinIO
 
 ```bash
 make minio-up
@@ -69,7 +69,7 @@ make query-explain-hive          # show pushdown in EXPLAIN
 make query-both                  # compare logs vs logs_flat
 ```
 
-### Day 3 — Benchmarks
+### Day 3: Benchmarks
 
 ```bash
 make bench-step1       # JSON export + compression + naive baseline
@@ -137,19 +137,19 @@ results/
 ## What I learned
 
 - **Arrow** is the in-memory column format; **Parquet** is the on-disk format; **DataFusion** converts between them during query execution
-- Parquet's power is **reading less** — column projection and partition pruning matter as much as compression
+- Parquet's power is **reading less**: column projection and partition pruning matter as much as compression
 - Row group statistics enable pushdown but only when min/max ranges are tight enough to skip groups
 - Hive partitioning helps scoped queries but hurts full-table scans (120 files vs 1)
 - Object storage (MinIO/S3) adds latency; pushdown matters even more when I/O is remote
 
 ## Interview talk track (5 min)
 
-1. **Inspect** — show row groups, dictionary encoding, min/max stats
-2. **EXPLAIN** — point at `ParquetExec`: one file, `projection=[status_code]`, `pruning_predicate`
-3. **Benchmarks** — 4.18× compression, ~635× faster than naive JSON on selective query
+1. **Inspect**: show row groups, dictionary encoding, min/max stats
+2. **EXPLAIN**: point at `ParquetExec`: one file, `projection=[status_code]`, `pruning_predicate`
+3. **Benchmarks**: 4.18× compression, ~635× faster than naive JSON on selective query
 
-Opening: *"I built a small pipeline with the stack your query team uses — Arrow, Parquet, MinIO, DataFusion — on synthetic observability logs."*
+Opening: *"I built a small pipeline with the stack your query team uses: Arrow, Parquet, MinIO, and DataFusion on synthetic observability logs."*
 
 Closing: *"The takeaway: columnar engines win by reading less. At scale I'd add streaming ingestion and smarter partitioning keyed on query patterns."*
 
-See [plan.md](plan.md) for the full schedule and follow-up Q&A.
+See [tech_spec.md](tech_spec.md) for the full schedule and follow-up Q&A.
