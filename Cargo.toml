@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["crates/generator", "crates/inspect", "crates/query", "crates/benchmark"]
+members = [
+    "crates/generator",
+    "crates/inspect",
+    "crates/query",
+    "crates/benchmark",
+    "crates/compact",
+]
 
 [workspace.package]
 version = "0.1.0"

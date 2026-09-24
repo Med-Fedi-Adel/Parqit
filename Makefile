@@ -29,7 +29,8 @@ METADATA_FILE := $(RESULTS_DIR)/metadata.txt
         inspect inspect-flat inspect-hive inspect-partition inspect-save \
         data-stats clean-data clean-results clean-all \
         query minio-up minio-down minio-logs \
-        bench-step1 bench-step2 export-jsonl bench-compression bench-naive
+        bench-step1 bench-step2 export-jsonl bench-compression bench-naive \
+        compact compact-dev
 
 ##@ Help
 
@@ -89,6 +90,16 @@ generate-v3-dev: ## v3 tiny dev run (100k rows) → data/test
 	$(CARGO) run -p generator -- --tier smoke --rows 100000 --output data/test \
 		--incident "day=1,hour=14-14,service=payments,error-rate=0.25"
 
+RAW_DIR       ?= $(OUTPUT)/raw
+COMPACTED_DIR ?= $(OUTPUT)/compacted
+
+compact: ## Merge raw micro-batches → $(COMPACTED_DIR)
+	$(CARGO) run -p compact -- --input $(RAW_DIR) --output $(COMPACTED_DIR)
+
+compact-dev: ## Compact data/test/raw → data/test/compacted
+	$(CARGO) run -p compact -- --input data/test/raw --output data/test/compacted \
+		--report results/compaction-dev.json
+
 ##@ Day 1 — Inspect
 
 inspect: inspect-flat inspect-hive ## Inspect both layouts
@@ -120,6 +131,9 @@ data-stats: ## Print parquet file counts and disk usage
 	@echo "Raw (v3):"
 	@find $(OUTPUT)/raw -name '*.parquet' 2>/dev/null | wc -l | xargs -I{} echo "  files: {}"
 	@du -sh $(OUTPUT)/raw 2>/dev/null || echo "  (not generated yet)"
+	@echo "Compacted (v3):"
+	@find $(OUTPUT)/compacted -name '*.parquet' 2>/dev/null | wc -l | xargs -I{} echo "  files: {}"
+	@du -sh $(OUTPUT)/compacted 2>/dev/null || echo "  (not compacted yet)"
 
 clean-data: ## Remove generated parquet files
 	rm -rf $(OUTPUT)

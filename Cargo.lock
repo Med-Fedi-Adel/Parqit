@@ -646,6 +646,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "compact"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "clap",
+ "parquet",
+ "rayon",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "const-random"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"

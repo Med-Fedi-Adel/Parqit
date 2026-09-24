@@ -1,0 +1,13 @@
+{
+  "input_dir": "data/raw",
+  "output_dir": "data/compacted",
+  "target_size_mb": 128,
+  "partitions": 3360,
+  "files_in": 13440,
+  "files_out": 3360,
+  "bytes_in": 10128204233,
+  "bytes_out": 10018048685,
+  "rows_in": 200000000,
+  "rows_out": 200000000,
+  "duration_secs": 615.007909899
+}
