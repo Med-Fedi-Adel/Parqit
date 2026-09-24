@@ -30,7 +30,8 @@ METADATA_FILE := $(RESULTS_DIR)/metadata.txt
         data-stats clean-data clean-results clean-all \
         query minio-up minio-down minio-logs \
         bench-step1 bench-step2 export-jsonl bench-compression bench-naive \
-        compact compact-dev
+        compact compact-dev upload-v3 \
+        bench-v3-raw bench-v3-compacted bench-v3-all
 
 ##@ Help
 
@@ -99,6 +100,22 @@ compact: ## Merge raw micro-batches → $(COMPACTED_DIR)
 compact-dev: ## Compact data/test/raw → data/test/compacted
 	$(CARGO) run -p compact -- --input data/test/raw --output data/test/compacted \
 		--report results/compaction-dev.json
+
+upload-v3: ## Upload data/raw + data/compacted to MinIO
+	@chmod +x scripts/upload-v3.sh
+	@./scripts/upload-v3.sh both
+
+upload-v3-raw: ## Upload data/raw only
+	@chmod +x scripts/upload-v3.sh
+	@./scripts/upload-v3.sh raw
+
+upload-v3-compacted: ## Upload data/compacted only
+	@chmod +x scripts/upload-v3.sh
+	@./scripts/upload-v3.sh compacted
+
+verify-minio: ## Compare local vs MinIO parquet file counts
+	@chmod +x scripts/verify-minio.sh
+	@./scripts/verify-minio.sh
 
 ##@ Day 1 — Inspect
 
@@ -196,6 +213,15 @@ bench-step1: ## Day 3.1: export + compression + naive → results/benchmarks.md
 
 bench-step2: ## Day 3.2: DataFusion benchmarks via MinIO
 	$(CARGO) run -p benchmark -- step2
+
+bench-v3-raw: ## v3 workloads on raw layout in MinIO
+	$(CARGO) run -p benchmark -- step3-raw
+
+bench-v3-compacted: ## v3 workloads on compacted layout in MinIO
+	$(CARGO) run -p benchmark -- step3-compacted
+
+bench-v3-all: ## v3 raw + compacted comparison → results/benchmarks_v3.md
+	$(CARGO) run -p benchmark -- step3-all
 
 bench-all: bench-step1 bench-step2 ## Run full Day 3 benchmark suite
 

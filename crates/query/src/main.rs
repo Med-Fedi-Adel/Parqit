@@ -1,8 +1,10 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context;
 use arrow::datatypes::DataType;
 use clap::{Parser, ValueEnum};
+use workloads::{build_workloads, load_manifest};
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::listing::{
     ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
@@ -17,6 +19,35 @@ enum Layout {
     Flat,
     /// Hive-style paths: date=…/hour=…/service=…/ (Layout A)
     Hive,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Workload {
+    FullScan,
+    Dashboard,
+    Incident,
+    ScopedDay,
+    TightPartition,
+    Selective5xx,
+    TraceLookup,
+    CrossDay,
+    ProjectionWide,
+}
+
+impl Workload {
+    fn id(self) -> &'static str {
+        match self {
+            Workload::FullScan => "full_scan",
+            Workload::Dashboard => "dashboard",
+            Workload::Incident => "incident",
+            Workload::ScopedDay => "scoped_day",
+            Workload::TightPartition => "tight_partition",
+            Workload::Selective5xx => "selective_5xx",
+            Workload::TraceLookup => "trace_lookup",
+            Workload::CrossDay => "cross_day",
+            Workload::ProjectionWide => "projection_wide",
+        }
+    }
 }
 
 #[derive(Parser)]
@@ -57,9 +88,21 @@ struct Args {
     #[arg(long, default_value = "logs")]
     table: String,
 
-    /// SQL query to execute
+    /// SQL query to execute (ignored when --workload is set)
     #[arg(long, default_value = "SELECT COUNT(*) AS row_count FROM logs")]
     sql: String,
+
+    /// Run a predefined v3 workload (reads queries/ + manifest.json)
+    #[arg(long, value_enum)]
+    workload: Option<Workload>,
+
+    /// Manifest for workload date/trace substitution
+    #[arg(long, default_value = "data/manifest.json")]
+    manifest: PathBuf,
+
+    /// Directory containing queries/*.sql templates
+    #[arg(long, default_value = "queries")]
+    queries_dir: PathBuf,
 
     /// Print EXPLAIN plan
     #[arg(long, default_value_t = false)]
@@ -106,7 +149,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     }
 
-    let sql = build_sql(&args);
+    let sql = resolve_sql(&args)?;
     println!("Running: {sql}");
     let df = ctx.sql(&sql).await.context("execute SQL")?;
     df.show().await.context("print results")?;
@@ -114,14 +157,27 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_sql(args: &Args) -> String {
-    if args.explain_analyze {
-        format!("EXPLAIN ANALYZE {}", args.sql)
-    } else if args.explain {
-        format!("EXPLAIN {}", args.sql)
+fn resolve_sql(args: &Args) -> anyhow::Result<String> {
+    let base_sql = if let Some(workload) = args.workload {
+        let manifest = load_manifest(&args.manifest)?;
+        let workloads = build_workloads(&manifest, &args.queries_dir)?;
+        let id = workload.id();
+        workloads
+            .into_iter()
+            .find(|w| w.id == id)
+            .map(|w| w.sql)
+            .with_context(|| format!("workload {id} not found"))?
     } else {
         args.sql.clone()
-    }
+    };
+
+    Ok(if args.explain_analyze {
+        format!("EXPLAIN ANALYZE {base_sql}")
+    } else if args.explain {
+        format!("EXPLAIN {base_sql}")
+    } else {
+        base_sql
+    })
 }
 
 fn register_minio_store(ctx: &SessionContext, args: &Args) -> anyhow::Result<()> {

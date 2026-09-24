@@ -2,6 +2,7 @@ mod compression;
 mod datafusion_bench;
 mod export;
 mod naive;
+mod v3_bench;
 
 use std::path::PathBuf;
 
@@ -86,6 +87,84 @@ enum Command {
         #[arg(long, default_value_t = 3)]
         runs: usize,
     },
+
+    /// v3 workloads on raw layout in MinIO
+    Step3Raw {
+        #[arg(long, default_value = "http://127.0.0.1:9000")]
+        endpoint: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        access_key: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        secret_key: String,
+
+        #[arg(long, default_value = "logs")]
+        bucket: String,
+
+        #[arg(long, default_value = "raw")]
+        path: String,
+
+        #[arg(long, default_value = "data/manifest.json")]
+        manifest: PathBuf,
+
+        #[arg(long, default_value = "queries")]
+        queries_dir: PathBuf,
+
+        #[arg(long, default_value_t = 3)]
+        runs: usize,
+    },
+
+    /// v3 workloads on compacted layout in MinIO
+    Step3Compacted {
+        #[arg(long, default_value = "http://127.0.0.1:9000")]
+        endpoint: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        access_key: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        secret_key: String,
+
+        #[arg(long, default_value = "logs")]
+        bucket: String,
+
+        #[arg(long, default_value = "compacted")]
+        path: String,
+
+        #[arg(long, default_value = "data/manifest.json")]
+        manifest: PathBuf,
+
+        #[arg(long, default_value = "queries")]
+        queries_dir: PathBuf,
+
+        #[arg(long, default_value_t = 3)]
+        runs: usize,
+    },
+
+    /// v3 raw + compacted workloads → results/benchmarks_v3.md
+    Step3All {
+        #[arg(long, default_value = "http://127.0.0.1:9000")]
+        endpoint: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        access_key: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        secret_key: String,
+
+        #[arg(long, default_value = "logs")]
+        bucket: String,
+
+        #[arg(long, default_value = "data/manifest.json")]
+        manifest: PathBuf,
+
+        #[arg(long, default_value = "queries")]
+        queries_dir: PathBuf,
+
+        #[arg(long, default_value_t = 3)]
+        runs: usize,
+    },
 }
 
 #[tokio::main]
@@ -109,6 +188,72 @@ async fn main() -> anyhow::Result<()> {
             bucket,
             runs,
         } => cmd_step2(endpoint, access_key, secret_key, bucket, runs).await,
+        Command::Step3Raw {
+            endpoint,
+            access_key,
+            secret_key,
+            bucket,
+            path,
+            manifest,
+            queries_dir,
+            runs,
+        } => {
+            cmd_step3_single(
+                endpoint,
+                access_key,
+                secret_key,
+                bucket,
+                path,
+                "Raw",
+                manifest,
+                queries_dir,
+                runs,
+            )
+            .await
+        }
+        Command::Step3Compacted {
+            endpoint,
+            access_key,
+            secret_key,
+            bucket,
+            path,
+            manifest,
+            queries_dir,
+            runs,
+        } => {
+            cmd_step3_single(
+                endpoint,
+                access_key,
+                secret_key,
+                bucket,
+                path,
+                "Compacted",
+                manifest,
+                queries_dir,
+                runs,
+            )
+            .await
+        }
+        Command::Step3All {
+            endpoint,
+            access_key,
+            secret_key,
+            bucket,
+            manifest,
+            queries_dir,
+            runs,
+        } => {
+            cmd_step3_all(
+                endpoint,
+                access_key,
+                secret_key,
+                bucket,
+                manifest,
+                queries_dir,
+                runs,
+            )
+            .await
+        }
     }
 }
 
@@ -208,6 +353,94 @@ fn print_compression_table(report: &compression::SizeReport) {
         compression::format_bytes(report.parquet_hive_bytes)
     );
     println!("  Ratio JSON/flat: {:.2}x", report.json_vs_flat_ratio());
+}
+
+fn minio_config(
+    endpoint: String,
+    access_key: String,
+    secret_key: String,
+    bucket: String,
+) -> datafusion_bench::MinioConfig {
+    datafusion_bench::MinioConfig {
+        endpoint,
+        access_key,
+        secret_key,
+        bucket,
+    }
+}
+
+async fn cmd_step3_single(
+    endpoint: String,
+    access_key: String,
+    secret_key: String,
+    bucket: String,
+    path: String,
+    label: &str,
+    manifest: PathBuf,
+    queries_dir: PathBuf,
+    runs: usize,
+) -> anyhow::Result<()> {
+    let config = minio_config(endpoint, access_key, secret_key, bucket);
+    let run = v3_bench::run_layout(
+        &config,
+        &path,
+        label,
+        &manifest,
+        &queries_dir,
+        runs,
+    )
+    .await?;
+
+    let md = v3_bench::format_benchmarks_v3(&manifest, runs, &run, None);
+    let out_path = PathBuf::from("results/benchmarks_v3.md");
+    if let Some(parent) = out_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&out_path, md)?;
+    println!("\nSaved → {}", out_path.display());
+    Ok(())
+}
+
+async fn cmd_step3_all(
+    endpoint: String,
+    access_key: String,
+    secret_key: String,
+    bucket: String,
+    manifest: PathBuf,
+    queries_dir: PathBuf,
+    runs: usize,
+) -> anyhow::Result<()> {
+    let config = minio_config(endpoint, access_key, secret_key, bucket);
+
+    let raw = v3_bench::run_layout(
+        &config,
+        "raw",
+        "Raw",
+        &manifest,
+        &queries_dir,
+        runs,
+    )
+    .await?;
+
+    println!();
+    let compacted = v3_bench::run_layout(
+        &config,
+        "compacted",
+        "Compacted",
+        &manifest,
+        &queries_dir,
+        runs,
+    )
+    .await?;
+
+    let md = v3_bench::format_benchmarks_v3(&manifest, runs, &raw, Some(&compacted));
+    let out_path = PathBuf::from("results/benchmarks_v3.md");
+    if let Some(parent) = out_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&out_path, md)?;
+    println!("\nSaved → {}", out_path.display());
+    Ok(())
 }
 
 async fn cmd_step2(

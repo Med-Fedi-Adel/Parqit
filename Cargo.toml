@@ -6,6 +6,7 @@ members = [
     "crates/query",
     "crates/benchmark",
     "crates/compact",
+    "crates/workloads",
 ]
 
 [workspace.package]
