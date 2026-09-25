@@ -6,6 +6,20 @@ All data is synthetic. Query patterns mirror real log analytics: dashboards, inc
 
 **Stack:** Arrow (in-memory) → Parquet (on-disk) → MinIO (S3 API) → DataFusion (SQL)
 
+```mermaid
+flowchart LR
+  G[generator] --> RAW[(raw Parquet)]
+  RAW --> CMP[compact]
+  CMP --> CPT[(compacted Parquet)]
+  RAW --> UP[upload-v3]
+  CPT --> UP
+  UP --> M[(MinIO)]
+  M --> Q[query]
+  M --> B[benchmark]
+  INS[inspect] -.-> RAW
+  INS -.-> CPT
+```
+
 ---
 
 ## What we built
@@ -49,6 +63,8 @@ We built this in two phases. v2 validated the mechanics on a small dataset. v3 s
 | DataFusion tight partition query | 19.8 ms |
 | Hive full scan vs flat full scan | 56 ms vs 5 ms |
 
+![v2: naive JSONL vs tight partition query](results/plots/v2_speedup.png)
+
 **Sub-conclusion:** Columnar engines win by reading less, not by parsing faster. Partition pruning and projection are real and measurable even at 5M rows. Hive layout loses on full scan (120 file opens) but wins when the query matches partition keys. That tradeoff carries through everything that follows.
 
 ```bash
@@ -74,6 +90,21 @@ Results: [results/benchmarks.md](results/benchmarks.md)
 
 **Sub-conclusion:** At 200M rows the bottleneck shifts from "can Parquet skip row groups?" to "how many objects does the query engine have to list and open?" File count becomes a first-class cost. v2's 120 partitions were a toy; v3's 13,440 files resemble a week of micro-batch ingest.
 
+Hive layout (one partition, raw ingest):
+
+```
+data/raw/
+  date=2026-09-01/
+    hour=14/
+      service=payments/
+        part-batch-0000.parquet   ← 15 min flush
+        part-batch-0001.parquet
+        part-batch-0002.parquet
+        part-batch-0003.parquet
+```
+
+Scale: 7 days × 24 hours × 20 services × 4 batches = **13,440 files**.
+
 ```bash
 make generate-v3-standard    # ~9.4 GiB raw, takes a while
 make upload-v3-raw             # see scripts/upload-v3.sh
@@ -92,6 +123,29 @@ make verify-minio              # local vs MinIO file counts
 4. Verified row counts match raw exactly (200M in, 200M out).
 
 Compaction does not change the data or partition scheme. It only reduces file count and footer/metadata overhead.
+
+```mermaid
+flowchart LR
+  subgraph before [Raw: same partition]
+    direction TB
+    B0[part-batch-0000]
+    B1[part-batch-0001]
+    B2[part-batch-0002]
+    B3[part-batch-0003]
+  end
+  subgraph after [Compacted: same rows]
+    P0[part-000.parquet]
+  end
+  before -->|compact| after
+```
+
+| | Raw | Compacted |
+|--|-----:|----------:|
+| Files (standard tier) | 13,440 | 3,360 |
+| Bytes | ~9.4 GiB | ~9.3 GiB |
+| Rows | 200M | 200M |
+
+![Compaction file count: raw vs compacted](results/plots/v3_compaction_files.png)
 
 **Sub-conclusion:** Compaction is not about compression ratio (bytes stay roughly the same). It trades **file sprawl for fewer, larger objects** so list-heavy queries spend less time on object-store housekeeping. The interesting comparisons are raw vs compacted on the same queries.
 
@@ -127,6 +181,10 @@ Report: [results/compaction.json](results/compaction.json)
 | Cross-day report | 16,682 | 16,565 | I/O bound, not file-count bound |
 | Projection wide | 76,685 | 78,445 | Reads many columns; compacted ~same |
 
+![v3 workloads: raw vs compacted latency](results/plots/v3_raw_vs_compacted.png)
+
+![Query shape vs latency (compacted layout)](results/plots/v3_workload_classes.png)
+
 **Sub-conclusion:** Scoped queries that hit partition keys stay in tens to hundreds of milliseconds even at 200M rows. Queries that touch the whole dataset expose file-count tax: selective 5xx without a partition filter is 2× faster on compacted. Trace lookup is honestly slow (~81–94 s) because nothing in the folder layout helps find a UUID. That is the expected production outcome without a secondary index.
 
 ```bash
@@ -154,6 +212,8 @@ cargo run -p query -- --path compacted --workload dashboard
 
 Scoped queries under load land around **1 s** (vs 200–400 ms isolated). Tail latency is dominated by **full scan** colliding in the same round; round 1 on raw hit ~16 s cold full scans before caches warmed.
 
+![Concurrent load: p50 / p95 / p99 by layout](results/plots/v3_concurrent_latency.png)
+
 **Sub-conclusion:** Single-threaded benchmarks understate production pain. Under 8-way load, partition-matched queries degrade ~3–4× but remain usable. Full scans and cold cache dominate p95/p99. Compaction cuts concurrent tail latency roughly in half (p99 5.8 s vs 15.8 s raw). Plan for warmup and avoid full retention scans on the raw ingest layout in a busy cluster.
 
 ```bash
@@ -166,11 +226,43 @@ make bench-v3-step4
 
 These stack in every query engine that reads Parquet well:
 
+```mermaid
+flowchart TD
+  Q[SQL + filters] --> PP{Partition keys<br/>in WHERE?}
+  PP -->|yes| SKIP1[Skip other date/hour/service dirs]
+  PP -->|no| ALL1[Scan all partitions]
+  SKIP1 --> CP[Column projection]
+  ALL1 --> CP
+  CP --> RG{Row group min/max<br/>rules out data?}
+  RG -->|yes| SKIP2[Skip row groups]
+  RG -->|no| READ[Read column chunks]
+  SKIP2 --> READ
+```
+
 1. **Partition pruning** — skip whole `date/hour/service` directories when the filter matches path keys.
 2. **Column projection** — read only columns in the SELECT list, not the full row.
 3. **Row group pruning** — skip groups using min/max statistics in the Parquet footer.
 
 A query that matches all three on Hive-partitioned data can open **one file**, read **one column**, and skip row groups. A naive JSONL scan still parses every line.
+
+**Which workloads get which skips:**
+
+```mermaid
+flowchart LR
+  subgraph fast [Tens of ms]
+    T[tight partition]
+    D[dashboard 1h]
+    I[incident 15m]
+  end
+  subgraph slow [Seconds to minutes]
+    F[full scan]
+    S[selective 5xx all data]
+    X[cross-day report]
+    TR[trace lookup]
+  end
+  fast -->|partition + column + row group| P[All three skips]
+  slow -->|partial or none| L[List / read most data]
+```
 
 ---
 
@@ -232,6 +324,7 @@ scripts/
 results/
   benchmarks.md       # v2
   benchmarks_v3.md    # v3 workloads + Step 4 concurrency
+  plots/              # PNG charts (pandas/matplotlib)
   compaction.json
 docker-compose.yml    Makefile
 ```
@@ -259,3 +352,4 @@ The stack held up: same generator, same SQL, same MinIO, same DataFusion. What c
 - v2 benchmarks: [results/benchmarks.md](results/benchmarks.md)
 - v3 benchmarks: [results/benchmarks_v3.md](results/benchmarks_v3.md)
 - v3 plan: [tech_spec_v3.md](tech_spec_v3.md)
+- Charts: [results/plots/](results/plots/) (regenerate with `make plots`)
