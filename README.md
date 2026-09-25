@@ -203,9 +203,9 @@ These stack in every query engine that reads Parquet well:
 
 ![Three skips: partition → column → row group](results/diagrams/pushdown.svg)
 
-1. **Partition pruning** — skip whole `date/hour/service` directories when the filter matches path keys.
-2. **Column projection** — read only columns in the SELECT list, not the full row.
-3. **Row group pruning** — skip groups using min/max statistics in the Parquet footer.
+1. **Partition pruning:** skip whole `date/hour/service` directories when the filter matches path keys.
+2. **Column projection:** read only columns in the SELECT list, not the full row.
+3. **Row group pruning:** skip groups using min/max statistics in the Parquet footer.
 
 A query that matches all three on Hive-partitioned data can open **one file**, read **one column**, and skip row groups. A naive JSONL scan still parses every line.
 
@@ -294,6 +294,39 @@ v3 asked what changes when the dataset looks like production: **200 million rows
 3. **Benchmark in isolation and under load.** Single-threaded medians flatter the system. Eight parallel clients turned 300 ms dashboard queries into ~1 s and made cold full scans the tail-latency story. That is closer to what a shared MinIO bucket sees in practice.
 
 The stack held up: same generator, same SQL, same MinIO, same DataFusion. What changed was the **shape of the data on disk** and the **honesty of the benchmark suite**. Columnar engines still win by reading less. At real scale you also have to manage **how much metadata you pay before you read anything**.
+
+---
+
+## Perspectives (v4 and beyond)
+
+v3 answered how Parquet and DataFusion behave at 200M rows with honest workloads. The open questions are mostly about **measurement depth** and **format comparison**, not about replacing the core stack.
+
+### Planned for the next version
+
+| Track | Goal | Why it matters |
+|-------|------|----------------|
+| **Query observability** | Report files opened and bytes read per workload | Separates list/metadata cost from column I/O (the raw vs compacted story in numbers, not just latency) |
+| **Local disk vs MinIO** | Same benchmarks on filesystem and object store | Isolates S3 API overhead from Parquet pushdown |
+| **inspect-summary** | Worst partitions by file count | Names the folders that hurt before you run a query |
+| **Incident injection** | Re-generate with `--incident`, re-run workloads | Same SQL, spiked 5xx window; tests whether error drills still feel fast |
+| **Stress tier** | 1B rows / 14 days if disk allows | Validates upload, compact, and bench scripts at the next order of magnitude |
+| **Trace lookup** | Document index options or a small sidecar | v3 proved folder layout cannot fix UUID point queries (~81 s); v4 should show what does |
+
+These were deferred from [tech_spec_v3.md](tech_spec_v3.md) after the standard-tier run shipped.
+
+### Vortex
+
+[v2 spec](tech_spec.md) deferred a **Vortex** columnar format comparison. v4 would add it as a third on-disk layout alongside Parquet raw and compacted:
+
+1. Export the same synthetic dataset to Vortex (same schema, same partition paths where the format allows).
+2. Run the nine v3 workloads against Vortex in MinIO with the same DataFusion or native reader path.
+3. Compare compression ratio, decode latency, and pushdown behavior on the workloads that hurt Parquet most (selective 5xx, trace lookup, full scan).
+
+The interesting question is not whether Vortex beats Parquet on every query. It is whether a newer columnar format changes the tradeoffs we measured in v3: file-count tax after micro-batch ingest, tail latency under concurrency, and the ceiling on high-cardinality lookups without an index.
+
+### Out of scope (still)
+
+Real streaming ingest (Kafka), distributed query clusters, production secondary indexes, and cloud S3 cost modeling stay out of scope. The project remains a local learning sandbox with synthetic data.
 
 ---
 

@@ -1,63 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="480" height="560" viewBox="0 0 480 560" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="560" viewBox="0 0 480 560">
   <defs>
     <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
       <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
     </marker>
   </defs>
-  <style>
-    .box { fill: #fff; stroke: #cbd5e1; stroke-width: 1.5; }
-    .dec { fill: #fefce8; stroke: #fde047; stroke-width: 1.5; }
-    .yes { fill: #f0fdf4; stroke: #86efac; stroke-width: 1.5; }
-    .no { fill: #fef2f2; stroke: #fca5a5; stroke-width: 1.5; }
-    .read { fill: #eff6ff; stroke: #93c5fd; stroke-width: 1.5; }
-    .label { font: 500 12px system-ui, sans-serif; fill: #334155; }
-    .title { font: 600 15px system-ui, sans-serif; fill: #0f172a; }
-    .tag { font: 11px system-ui, sans-serif; fill: #64748b; }
-    .line { stroke: #94a3b8; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
-  </style>
-  <text x="24" y="28" class="title">Three skips</text>
 
-  <rect x="140" y="48" width="200" height="40" rx="8" class="box"/>
-  <text x="240" y="73" class="label" text-anchor="middle">SQL + filters</text>
+  <text x="24" y="28" font-family="system-ui,sans-serif" font-size="15" font-weight="600" fill="#0f172a">Three skips</text>
 
-  <rect x="120" y="120" width="240" height="44" rx="8" class="dec"/>
-  <text x="240" y="147" class="label" text-anchor="middle">Partition keys in WHERE?</text>
+  <rect x="140" y="48" width="200" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="240" y="73" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#334155" text-anchor="middle">SQL + filters</text>
 
-  <rect x="32" y="220" width="168" height="48" rx="8" class="yes"/>
-  <text x="116" y="242" class="label" text-anchor="middle">Skip other</text>
-  <text x="116" y="258" class="label" text-anchor="middle">date / hour / service</text>
+  <rect x="120" y="120" width="240" height="44" rx="8" fill="#fefce8" stroke="#fde047" stroke-width="1.5"/>
+  <text x="240" y="147" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#334155" text-anchor="middle">Partition keys in WHERE?</text>
 
-  <rect x="280" y="220" width="168" height="48" rx="8" class="no"/>
-  <text x="364" y="242" class="label" text-anchor="middle">Scan all</text>
-  <text x="364" y="258" class="label" text-anchor="middle">partitions</text>
+  <rect x="32" y="220" width="168" height="48" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="116" y="242" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#334155" text-anchor="middle">Skip other</text>
+  <text x="116" y="258" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#334155" text-anchor="middle">date / hour / service</text>
 
-  <rect x="140" y="308" width="200" height="40" rx="8" class="box"/>
-  <text x="240" y="333" class="label" text-anchor="middle">Column projection</text>
+  <rect x="280" y="220" width="168" height="48" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+  <text x="364" y="242" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#334155" text-anchor="middle">Scan all</text>
+  <text x="364" y="258" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#334155" text-anchor="middle">partitions</text>
 
-  <rect x="110" y="380" width="260" height="44" rx="8" class="dec"/>
-  <text x="240" y="407" class="label" text-anchor="middle">Row group min/max rules out data?</text>
+  <rect x="140" y="308" width="200" height="40" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="240" y="333" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#334155" text-anchor="middle">Column projection</text>
 
-  <rect x="56" y="448" width="168" height="40" rx="8" class="yes"/>
-  <text x="140" y="473" class="label" text-anchor="middle">Skip row groups</text>
+  <rect x="110" y="380" width="260" height="44" rx="8" fill="#fefce8" stroke="#fde047" stroke-width="1.5"/>
+  <text x="240" y="407" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#334155" text-anchor="middle">Row group min/max rules out data?</text>
 
-  <rect x="116" y="512" width="248" height="40" rx="8" class="read"/>
-  <text x="240" y="537" class="label" text-anchor="middle">Read column chunks</text>
+  <rect x="56" y="448" width="168" height="40" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="140" y="473" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#334155" text-anchor="middle">Skip row groups</text>
 
-  <line x1="240" y1="88" x2="240" y2="120" class="line"/>
-  <line x1="240" y1="164" x2="116" y2="220" class="line"/>
-  <line x1="240" y1="164" x2="364" y2="220" class="line"/>
-  <text x="168" y="188" class="tag">yes</text>
-  <text x="312" y="188" class="tag">no</text>
-  <line x1="116" y1="268" x2="116" y2="288" class="line"/>
-  <line x1="116" y1="288" x2="240" y2="288" class="line"/>
-  <line x1="240" y1="288" x2="240" y2="308" class="line"/>
-  <line x1="364" y1="268" x2="364" y2="288" class="line"/>
-  <line x1="364" y1="288" x2="240" y2="288" class="line"/>
-  <line x1="240" y1="348" x2="240" y2="380" class="line"/>
-  <line x1="240" y1="424" x2="140" y2="448" class="line"/>
-  <line x1="240" y1="424" x2="320" y2="448" class="line"/>
-  <line x1="320" y1="448" x2="320" y2="512" class="line"/>
-  <text x="178" y="432" class="tag">yes</text>
-  <text x="298" y="432" class="tag">no</text>
-  <path d="M 140 488 L 140 505 L 240 505 L 240 512" class="line"/>
+  <rect x="116" y="512" width="248" height="40" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <text x="240" y="537" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#334155" text-anchor="middle">Read column chunks</text>
+
+  <line x1="240" y1="88" x2="240" y2="120" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <line x1="240" y1="164" x2="116" y2="220" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <line x1="240" y1="164" x2="364" y2="220" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="168" y="188" font-family="system-ui,sans-serif" font-size="11" fill="#64748b">yes</text>
+  <text x="312" y="188" font-family="system-ui,sans-serif" font-size="11" fill="#64748b">no</text>
+  <line x1="116" y1="268" x2="116" y2="288" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <line x1="116" y1="288" x2="240" y2="288" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <line x1="240" y1="288" x2="240" y2="308" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <line x1="364" y1="268" x2="364" y2="288" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <line x1="364" y1="288" x2="240" y2="288" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <line x1="240" y1="348" x2="240" y2="380" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <line x1="240" y1="424" x2="140" y2="448" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <line x1="240" y1="424" x2="320" y2="448" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <line x1="320" y1="448" x2="320" y2="512" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+  <text x="178" y="432" font-family="system-ui,sans-serif" font-size="11" fill="#64748b">yes</text>
+  <text x="298" y="432" font-family="system-ui,sans-serif" font-size="11" fill="#64748b">no</text>
+  <path d="M 140 488 L 140 505 L 240 505 L 240 512" stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
 </svg>

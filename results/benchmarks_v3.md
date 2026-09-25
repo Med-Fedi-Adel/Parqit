@@ -51,7 +51,7 @@ _Median of 3 runs._
 | Projection wide | 76684.7 | 78444.7 | 0.98x |
 
 
-## Step 4 — Concurrent load
+## Step 4: Concurrent load
 
 ### Raw (`raw`, 8 workers × 3 rounds = 24 queries)
 
