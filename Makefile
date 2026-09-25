@@ -232,7 +232,7 @@ bench-v3-step4: ## v3 concurrent raw + compacted → append Step 4 to benchmarks
 
 bench-all: bench-step1 bench-step2 ## Run full Day 3 benchmark suite
 
-demo: ## End-to-end demo (inspect + EXPLAIN + query + benchmarks)
+demo: ## End-to-end demo (v3 compacted+incident if data exists, else v2)
 	@chmod +x scripts/demo.sh
 	@./scripts/demo.sh
 
