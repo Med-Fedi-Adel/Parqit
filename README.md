@@ -6,7 +6,7 @@ All data is synthetic. Query patterns mirror real log analytics: dashboards, inc
 
 **Stack:** Arrow (in-memory) → Parquet (on-disk) → MinIO (S3 API) → DataFusion (SQL)
 
-![v3 pipeline](results/plots/diagram_pipeline.png)
+![v3 pipeline](results/diagrams/pipeline.svg)
 
 ---
 
@@ -112,7 +112,7 @@ make verify-minio              # local vs MinIO file counts
 
 Compaction does not change the data or partition scheme. It only reduces file count and footer/metadata overhead.
 
-![Compaction: four micro-batches → one file](results/plots/diagram_compaction.png)
+![Compaction: four micro-batches → one file](results/diagrams/compaction.svg)
 
 | | Raw | Compacted |
 |--|-----:|----------:|
@@ -201,7 +201,7 @@ make bench-v3-step4
 
 These stack in every query engine that reads Parquet well:
 
-![Three skips: partition → column → row group](results/plots/diagram_pushdown.png)
+![Three skips: partition → column → row group](results/diagrams/pushdown.svg)
 
 1. **Partition pruning** — skip whole `date/hour/service` directories when the filter matches path keys.
 2. **Column projection** — read only columns in the SELECT list, not the full row.
@@ -211,7 +211,7 @@ A query that matches all three on Hive-partitioned data can open **one file**, r
 
 **Which workloads get which skips:**
 
-![Fast vs slow workloads](results/plots/diagram_workloads.png)
+![Fast vs slow workloads](results/diagrams/workloads.svg)
 
 ---
 
@@ -274,6 +274,7 @@ results/
   benchmarks.md       # v2
   benchmarks_v3.md    # v3 workloads + Step 4 concurrency
   plots/              # PNG charts (pandas/matplotlib)
+  diagrams/           # architecture SVGs
   compaction.json
 docker-compose.yml    Makefile
 ```
@@ -301,4 +302,5 @@ The stack held up: same generator, same SQL, same MinIO, same DataFusion. What c
 - v2 benchmarks: [results/benchmarks.md](results/benchmarks.md)
 - v3 benchmarks: [results/benchmarks_v3.md](results/benchmarks_v3.md)
 - v3 plan: [tech_spec_v3.md](tech_spec_v3.md)
-- Charts + hand-drawn diagrams: [results/plots/](results/plots/) (regenerate with `make plots`)
+- Charts: [results/plots/](results/plots/) (`make plots`)
+- Diagrams: [results/diagrams/](results/diagrams/) (static SVG)

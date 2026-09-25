@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="200" viewBox="0 0 960 200" fill="none">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill: #fff; stroke: #cbd5e1; stroke-width: 1.5; }
+    .store { fill: #eff6ff; stroke: #93c5fd; stroke-width: 1.5; }
+    .label { font: 500 13px system-ui, sans-serif; fill: #334155; }
+    .title { font: 600 15px system-ui, sans-serif; fill: #0f172a; }
+    .line { stroke: #94a3b8; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+    .dash { stroke: #94a3b8; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+  </style>
+  <text x="24" y="28" class="title">v3 pipeline</text>
+
+  <rect x="24" y="88" width="88" height="44" rx="8" class="box"/>
+  <text x="68" y="115" class="label" text-anchor="middle">generator</text>
+
+  <rect x="140" y="80" width="96" height="52" rx="8" class="store"/>
+  <text x="188" y="108" class="label" text-anchor="middle">raw Parquet</text>
+
+  <rect x="264" y="88" width="80" height="44" rx="8" class="box"/>
+  <text x="304" y="115" class="label" text-anchor="middle">compact</text>
+
+  <rect x="372" y="80" width="108" height="52" rx="8" class="store"/>
+  <text x="426" y="108" class="label" text-anchor="middle">compacted</text>
+
+  <rect x="508" y="88" width="88" height="44" rx="8" class="box"/>
+  <text x="552" y="115" class="label" text-anchor="middle">upload-v3</text>
+
+  <rect x="624" y="80" width="80" height="52" rx="8" class="store"/>
+  <text x="664" y="108" class="label" text-anchor="middle">MinIO</text>
+
+  <rect x="732" y="68" width="72" height="40" rx="8" class="box"/>
+  <text x="768" y="93" class="label" text-anchor="middle">query</text>
+
+  <rect x="732" y="120" width="88" height="40" rx="8" class="box"/>
+  <text x="776" y="145" class="label" text-anchor="middle">benchmark</text>
+
+  <rect x="300" y="24" width="72" height="36" rx="8" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1.5"/>
+  <text x="336" y="47" class="label" text-anchor="middle">inspect</text>
+
+  <line x1="112" y1="110" x2="140" y2="110" class="line"/>
+  <line x1="236" y1="110" x2="264" y2="110" class="line"/>
+  <line x1="344" y1="110" x2="372" y2="110" class="line"/>
+  <line x1="480" y1="110" x2="508" y2="110" class="line"/>
+  <line x1="596" y1="110" x2="624" y2="110" class="line"/>
+  <line x1="704" y1="100" x2="732" y2="88" class="line"/>
+  <line x1="704" y1="118" x2="732" y2="140" class="line"/>
+
+  <line x1="336" y1="60" x2="188" y2="80" class="dash"/>
+  <line x1="336" y1="60" x2="426" y2="80" class="dash"/>
+</svg>
