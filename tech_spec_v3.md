@@ -4,6 +4,18 @@ v2 proved pushdown on 5M rows and 120 files. That's a toy. Real observability pi
 
 v3 keeps the same stack (Rust, Arrow, Parquet, MinIO, DataFusion) but changes the *shape* of the data and the *benchmark suite* to match what breaks in production.
 
+**Status: shipped** (standard tier, 200M rows / 7 days)
+
+| Result | Value |
+|--------|-------|
+| Raw files | 13,440 |
+| Compacted files | 3,360 |
+| Selective 5xx (raw → compacted) | 26.0 s → 12.8 s |
+| Concurrent p99 (raw → compacted) | 15.8 s → 5.8 s |
+| Trace lookup (compacted) | ~81 s (no partition help) |
+
+Full numbers: [results/benchmarks_v3.md](results/benchmarks_v3.md). Run the demo: `make demo`.
+
 ---
 
 ## What v2 doesn't exercise
@@ -205,13 +217,13 @@ Store picked `trace_id` values in `data/manifest.json` at generate time so looku
 
 **Goal:** 200M rows, 7 days, skew, multi-file raw layout.
 
-- [ ] Multi-day partition keys
-- [ ] Service list expanded to 20 with Zipf weights
-- [ ] Micro-batch file writer (multiple parquets per partition)
-- [ ] Incident injection flag
-- [ ] `manifest.json` with sample trace_ids per day
-- [ ] Makefile: `make generate-standard`, `make generate-smoke`
-- [ ] Update `data-stats` for file counts at scale
+- [x] Multi-day partition keys
+- [x] Service list expanded to 20 with Zipf weights
+- [x] Micro-batch file writer (multiple parquets per partition)
+- [x] Incident injection flag (`--incident`; optional, not used in standard run)
+- [x] `manifest.json` with sample trace_ids per day
+- [x] Makefile: `make generate-v3-standard`, `make generate-v3-smoke`
+- [x] Update `data-stats` for file counts at scale
 
 **Done when:** `du -sh data/raw` ≈ 10 GB, file count in the thousands, inspect summary runs in <30s.
 
@@ -219,10 +231,10 @@ Store picked `trace_id` values in `data/manifest.json` at generate time so looku
 
 **Goal:** compacted layout that queries should prefer.
 
-- [ ] `compact` command merges per-partition files
-- [ ] Verify row counts match raw (checksum query)
-- [ ] Makefile: `make compact`
-- [ ] Document size reduction (metadata overhead, fewer footers)
+- [x] `compact` command merges per-partition files
+- [x] Verify row counts match raw (200M in / 200M out, [results/compaction.json](results/compaction.json))
+- [x] Makefile: `make compact`
+- [x] Document size reduction (metadata overhead, fewer footers)
 
 **Done when:** file count drops 80–95%, total bytes similar ±5%.
 
@@ -230,10 +242,10 @@ Store picked `trace_id` values in `data/manifest.json` at generate time so looku
 
 **Goal:** production query mix, raw vs compacted numbers.
 
-- [ ] `queries/*.sql` + workload runner
-- [ ] bench step3-raw, step3-compacted
-- [ ] Results appended to `results/benchmarks_v3.md`
-- [ ] Each row: workload, layout, latency, files (if available), notes
+- [x] `queries/*.sql` + workload runner
+- [x] bench step3-raw, step3-compacted
+- [x] Results appended to `results/benchmarks_v3.md`
+- [x] Each row: workload, layout, latency, notes (files-opened metric deferred)
 
 **Done when:** can show "incident query 12× slower on raw than compacted" or "trace lookup equally bad on both" with real numbers.
 
@@ -241,18 +253,18 @@ Store picked `trace_id` values in `data/manifest.json` at generate time so looku
 
 **Goal:** stress the system, not just one query.
 
-- [ ] Concurrent benchmark (8 workers, mixed workload)
-- [ ] p50/p95/p99 reporting
-- [ ] Optional: docker memory limit on MinIO to observe pressure
-- [ ] Optional: `stress` tier at 1B if disk allows
+- [x] Concurrent benchmark (8 workers, mixed workload)
+- [x] p50/p95/p99 reporting
+- [ ] Optional: docker memory limit on MinIO to observe pressure (deferred)
+- [ ] Optional: `stress` tier at 1B if disk allows (deferred)
 
 **Done when:** have a concurrency row in benchmarks and can point at where latency diverges.
 
 ### Phase 5: Docs and demo
 
-- [ ] README section "v3 vs v2"
-- [ ] `scripts/demo.sh` runs compacted path + one incident query
-- [ ] Fold key v3 numbers into README (replace or supplement v2 table)
+- [x] README process narrative (v2 → v3, sub-conclusions, full conclusion)
+- [x] `scripts/demo.sh` runs compacted path + incident query (auto-detects v3)
+- [x] Fold key v3 numbers into README
 
 ---
 

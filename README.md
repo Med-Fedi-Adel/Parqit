@@ -197,7 +197,10 @@ make upload-v3
 make verify-minio          # expect raw=13440, compacted=3360
 make bench-v3-all
 make bench-v3-step4
+make demo                  # compacted incident drill (auto-detects v3)
 ```
+
+If MinIO file counts drift after re-compaction: `make clean-minio-v3 && make upload-v3`.
 
 **Useful commands:** `make help`
 
@@ -225,7 +228,7 @@ crates/
   generator/   inspect/   query/   benchmark/   compact/   workloads/
 queries/                 # SQL workload templates
 scripts/
-  demo.sh  upload-v3.sh  verify-minio.sh  save-explain.sh
+  demo.sh  upload-v3.sh  verify-minio.sh  clean-minio-v3.sh  save-explain.sh
 results/
   benchmarks.md       # v2
   benchmarks_v3.md    # v3 workloads + Step 4 concurrency

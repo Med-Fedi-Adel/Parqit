@@ -30,7 +30,7 @@ METADATA_FILE := $(RESULTS_DIR)/metadata.txt
         data-stats clean-data clean-results clean-all \
         query minio-up minio-down minio-logs \
         bench-step1 bench-step2 export-jsonl bench-compression bench-naive \
-        compact compact-dev upload-v3 \
+        compact compact-dev upload-v3 clean-minio-v3 \
         bench-v3-raw bench-v3-compacted bench-v3-all \
         bench-v3-concurrent bench-v3-step4
 
@@ -113,6 +113,10 @@ upload-v3-raw: ## Upload data/raw only
 upload-v3-compacted: ## Upload data/compacted only
 	@chmod +x scripts/upload-v3.sh
 	@./scripts/upload-v3.sh compacted
+
+clean-minio-v3: ## Remove v3 raw/compacted prefixes from MinIO (fix stale counts)
+	@chmod +x scripts/clean-minio-v3.sh
+	@./scripts/clean-minio-v3.sh both
 
 verify-minio: ## Compare local vs MinIO parquet file counts
 	@chmod +x scripts/verify-minio.sh
