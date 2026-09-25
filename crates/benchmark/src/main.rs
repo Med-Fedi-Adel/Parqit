@@ -3,6 +3,7 @@ mod datafusion_bench;
 mod export;
 mod naive;
 mod v3_bench;
+mod v3_concurrent;
 
 use std::path::PathBuf;
 
@@ -165,6 +166,63 @@ enum Command {
         #[arg(long, default_value_t = 3)]
         runs: usize,
     },
+
+    /// v3 concurrent mix on one layout (p50/p95/p99)
+    Step4 {
+        #[arg(long, default_value = "http://127.0.0.1:9000")]
+        endpoint: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        access_key: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        secret_key: String,
+
+        #[arg(long, default_value = "logs")]
+        bucket: String,
+
+        #[arg(long, default_value = "compacted")]
+        path: String,
+
+        #[arg(long, default_value = "data/manifest.json")]
+        manifest: PathBuf,
+
+        #[arg(long, default_value = "queries")]
+        queries_dir: PathBuf,
+
+        #[arg(long, default_value_t = 8)]
+        workers: usize,
+
+        #[arg(long, default_value_t = 3)]
+        rounds: usize,
+    },
+
+    /// v3 concurrent mix on raw + compacted → append Step 4 to benchmarks_v3.md
+    Step4All {
+        #[arg(long, default_value = "http://127.0.0.1:9000")]
+        endpoint: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        access_key: String,
+
+        #[arg(long, default_value = "minioadmin")]
+        secret_key: String,
+
+        #[arg(long, default_value = "logs")]
+        bucket: String,
+
+        #[arg(long, default_value = "data/manifest.json")]
+        manifest: PathBuf,
+
+        #[arg(long, default_value = "queries")]
+        queries_dir: PathBuf,
+
+        #[arg(long, default_value_t = 8)]
+        workers: usize,
+
+        #[arg(long, default_value_t = 3)]
+        rounds: usize,
+    },
 }
 
 #[tokio::main]
@@ -251,6 +309,52 @@ async fn main() -> anyhow::Result<()> {
                 manifest,
                 queries_dir,
                 runs,
+            )
+            .await
+        }
+        Command::Step4 {
+            endpoint,
+            access_key,
+            secret_key,
+            bucket,
+            path,
+            manifest,
+            queries_dir,
+            workers,
+            rounds,
+        } => {
+            cmd_step4_single(
+                endpoint,
+                access_key,
+                secret_key,
+                bucket,
+                path,
+                manifest,
+                queries_dir,
+                workers,
+                rounds,
+            )
+            .await
+        }
+        Command::Step4All {
+            endpoint,
+            access_key,
+            secret_key,
+            bucket,
+            manifest,
+            queries_dir,
+            workers,
+            rounds,
+        } => {
+            cmd_step4_all(
+                endpoint,
+                access_key,
+                secret_key,
+                bucket,
+                manifest,
+                queries_dir,
+                workers,
+                rounds,
             )
             .await
         }
@@ -440,6 +544,79 @@ async fn cmd_step3_all(
     }
     std::fs::write(&out_path, md)?;
     println!("\nSaved → {}", out_path.display());
+    Ok(())
+}
+
+async fn cmd_step4_single(
+    endpoint: String,
+    access_key: String,
+    secret_key: String,
+    bucket: String,
+    path: String,
+    manifest: PathBuf,
+    queries_dir: PathBuf,
+    workers: usize,
+    rounds: usize,
+) -> anyhow::Result<()> {
+    let config = minio_config(endpoint, access_key, secret_key, bucket);
+    let label = if path == "raw" { "Raw" } else { "Compacted" };
+    let run = v3_concurrent::run_concurrent(
+        &config,
+        &path,
+        label,
+        &manifest,
+        &queries_dir,
+        workers,
+        rounds,
+    )
+    .await?;
+
+    let step4_md = v3_concurrent::format_step4_markdown(&run, None);
+    let out_path = PathBuf::from("results/benchmarks_v3.md");
+    v3_concurrent::append_step4_to_file(&out_path, &step4_md)?;
+    println!("\nAppended Step 4 → {}", out_path.display());
+    Ok(())
+}
+
+async fn cmd_step4_all(
+    endpoint: String,
+    access_key: String,
+    secret_key: String,
+    bucket: String,
+    manifest: PathBuf,
+    queries_dir: PathBuf,
+    workers: usize,
+    rounds: usize,
+) -> anyhow::Result<()> {
+    let config = minio_config(endpoint, access_key, secret_key, bucket);
+
+    let raw = v3_concurrent::run_concurrent(
+        &config,
+        "raw",
+        "Raw",
+        &manifest,
+        &queries_dir,
+        workers,
+        rounds,
+    )
+    .await?;
+
+    println!();
+    let compacted = v3_concurrent::run_concurrent(
+        &config,
+        "compacted",
+        "Compacted",
+        &manifest,
+        &queries_dir,
+        workers,
+        rounds,
+    )
+    .await?;
+
+    let step4_md = v3_concurrent::format_step4_markdown(&raw, Some(&compacted));
+    let out_path = PathBuf::from("results/benchmarks_v3.md");
+    v3_concurrent::append_step4_to_file(&out_path, &step4_md)?;
+    println!("\nAppended Step 4 → {}", out_path.display());
     Ok(())
 }
 

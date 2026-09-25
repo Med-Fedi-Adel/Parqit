@@ -410,6 +410,7 @@ dependencies = [
  "arrow",
  "clap",
  "datafusion",
+ "futures",
  "object_store",
  "parquet",
  "serde",

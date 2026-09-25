@@ -56,13 +56,36 @@ fn scan_with_filter(
     })
 }
 
-pub fn median_ms(mut samples: Vec<f64>) -> f64 {
+pub fn median_ms(samples: Vec<f64>) -> f64 {
+    percentile_ms(samples, 50.0)
+}
+
+pub fn percentile_ms(mut samples: Vec<f64>, p: f64) -> f64 {
+    assert!(!samples.is_empty(), "percentile requires at least one sample");
     samples.sort_by(f64::total_cmp);
-    let mid = samples.len() / 2;
-    if samples.len() % 2 == 0 {
-        (samples[mid - 1] + samples[mid]) / 2.0
+    let rank = (p / 100.0) * (samples.len() as f64 - 1.0);
+    let lo = rank.floor() as usize;
+    let hi = rank.ceil() as usize;
+    if lo == hi {
+        samples[lo]
     } else {
-        samples[mid]
+        let weight = rank - lo as f64;
+        samples[lo] * (1.0 - weight) + samples[hi] * weight
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LatencyStats {
+    pub p50_ms: f64,
+    pub p95_ms: f64,
+    pub p99_ms: f64,
+}
+
+pub fn latency_stats(samples: Vec<f64>) -> LatencyStats {
+    LatencyStats {
+        p50_ms: percentile_ms(samples.clone(), 50.0),
+        p95_ms: percentile_ms(samples.clone(), 95.0),
+        p99_ms: percentile_ms(samples, 99.0),
     }
 }
 

@@ -57,7 +57,7 @@ pub async fn run_layout(
     })
 }
 
-async fn build_context(config: &MinioConfig, path: &str) -> anyhow::Result<SessionContext> {
+pub async fn build_context(config: &MinioConfig, path: &str) -> anyhow::Result<SessionContext> {
     let ctx = SessionContext::new();
 
     let store = AmazonS3Builder::new()
@@ -100,13 +100,17 @@ async fn build_context(config: &MinioConfig, path: &str) -> anyhow::Result<Sessi
     Ok(ctx)
 }
 
+pub async fn run_query_once(ctx: &SessionContext, sql: &str) -> anyhow::Result<f64> {
+    let start = Instant::now();
+    let df = ctx.sql(sql).await.context("execute SQL")?;
+    df.collect().await.context("collect results")?;
+    Ok(start.elapsed().as_secs_f64() * 1000.0)
+}
+
 async fn run_query_median(ctx: &SessionContext, sql: &str, runs: usize) -> anyhow::Result<f64> {
     let mut times = Vec::with_capacity(runs);
     for _ in 0..runs {
-        let start = Instant::now();
-        let df = ctx.sql(sql).await.context("execute SQL")?;
-        df.collect().await.context("collect results")?;
-        times.push(start.elapsed().as_secs_f64() * 1000.0);
+        times.push(run_query_once(ctx, sql).await?);
     }
     Ok(naive::median_ms(times))
 }

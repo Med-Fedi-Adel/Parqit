@@ -143,3 +143,21 @@ fn substitute(template: &str, vars: &HashMap<String, String>) -> String {
 pub fn default_queries_dir() -> PathBuf {
     PathBuf::from("queries")
 }
+
+/// Workloads used in the concurrent mix (skip trace lookup and wide scans).
+pub fn concurrent_workload_ids() -> &'static [&'static str] {
+    &[
+        "dashboard",
+        "incident",
+        "tight_partition",
+        "scoped_day",
+        "full_scan",
+    ]
+}
+
+pub fn filter_workloads(all: &[Workload], ids: &[&str]) -> Vec<Workload> {
+    all.iter()
+        .filter(|w| ids.contains(&w.id))
+        .cloned()
+        .collect()
+}

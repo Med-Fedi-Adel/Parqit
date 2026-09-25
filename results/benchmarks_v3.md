@@ -50,3 +50,43 @@ _Median of 3 runs._
 | Cross-day report (api routes) | 16682.2 | 16564.9 | 1.01x |
 | Projection wide | 76684.7 | 78444.7 | 0.98x |
 
+
+## Step 4 — Concurrent load
+
+### Raw (`raw`, 8 workers × 3 rounds = 24 queries)
+
+| Metric | p50 (ms) | p95 (ms) | p99 (ms) |
+|--------|----------:|---------:|---------:|
+| **Overall** | **1315.2** | **13895.0** | **15779.7** |
+
+| Workload | p50 (ms) | p95 (ms) | p99 (ms) | Samples |
+|----------|----------:|---------:|---------:|--------:|
+| Dashboard (1h errors by service) | 1271.6 | 1437.2 | 1440.0 | 5 |
+| Full scan | 3277.4 | 15780.1 | 15782.4 | 5 |
+| Incident (15m 5xx window) | 1218.9 | 1327.9 | 1331.2 | 5 |
+| Scoped day (payments 5xx) | 1633.7 | 1714.8 | 1730.9 | 5 |
+| Tight partition (1 file) | 173.2 | 255.8 | 256.2 | 4 |
+
+### Compacted (`compacted`, 8 workers × 3 rounds = 24 queries)
+
+| Metric | p50 (ms) | p95 (ms) | p99 (ms) |
+|--------|----------:|---------:|---------:|
+| **Overall** | **1023.5** | **5277.7** | **5767.7** |
+
+| Workload | p50 (ms) | p95 (ms) | p99 (ms) | Samples |
+|----------|----------:|---------:|---------:|--------:|
+| Dashboard (1h errors by service) | 907.0 | 1014.1 | 1017.1 | 5 |
+| Full scan | 2525.0 | 5767.9 | 5768.8 | 5 |
+| Incident (15m 5xx window) | 985.3 | 1069.0 | 1070.4 | 5 |
+| Scoped day (payments 5xx) | 1186.5 | 1308.0 | 1322.6 | 5 |
+| Tight partition (1 file) | 109.2 | 149.0 | 154.5 | 4 |
+
+
+### Raw vs compacted (overall p50)
+
+| Layout | p50 (ms) | p95 (ms) | p99 (ms) |
+|--------|----------:|---------:|---------:|
+| Raw | 1315.2 | 13895.0 | 15779.7 |
+| Compacted | 1023.5 | 5277.7 | 5767.7 |
+
+_Compacted p50 is 1.28× raw p50 under concurrent load._

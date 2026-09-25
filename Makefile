@@ -31,7 +31,8 @@ METADATA_FILE := $(RESULTS_DIR)/metadata.txt
         query minio-up minio-down minio-logs \
         bench-step1 bench-step2 export-jsonl bench-compression bench-naive \
         compact compact-dev upload-v3 \
-        bench-v3-raw bench-v3-compacted bench-v3-all
+        bench-v3-raw bench-v3-compacted bench-v3-all \
+        bench-v3-concurrent bench-v3-step4
 
 ##@ Help
 
@@ -222,6 +223,12 @@ bench-v3-compacted: ## v3 workloads on compacted layout in MinIO
 
 bench-v3-all: ## v3 raw + compacted comparison → results/benchmarks_v3.md
 	$(CARGO) run -p benchmark -- step3-all
+
+bench-v3-concurrent: ## v3 concurrent mix on compacted (8 workers × 3 rounds)
+	$(CARGO) run -p benchmark -- step4 --path compacted
+
+bench-v3-step4: ## v3 concurrent raw + compacted → append Step 4 to benchmarks_v3.md
+	$(CARGO) run -p benchmark -- step4-all
 
 bench-all: bench-step1 bench-step2 ## Run full Day 3 benchmark suite
 
