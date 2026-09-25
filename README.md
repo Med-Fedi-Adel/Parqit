@@ -6,19 +6,7 @@ All data is synthetic. Query patterns mirror real log analytics: dashboards, inc
 
 **Stack:** Arrow (in-memory) → Parquet (on-disk) → MinIO (S3 API) → DataFusion (SQL)
 
-```mermaid
-flowchart LR
-  G[generator] --> RAW[(raw Parquet)]
-  RAW --> CMP[compact]
-  CMP --> CPT[(compacted Parquet)]
-  RAW --> UP[upload-v3]
-  CPT --> UP
-  UP --> M[(MinIO)]
-  M --> Q[query]
-  M --> B[benchmark]
-  INS[inspect] -.-> RAW
-  INS -.-> CPT
-```
+![v3 pipeline](results/plots/diagram_pipeline.png)
 
 ---
 
@@ -124,20 +112,7 @@ make verify-minio              # local vs MinIO file counts
 
 Compaction does not change the data or partition scheme. It only reduces file count and footer/metadata overhead.
 
-```mermaid
-flowchart LR
-  subgraph before [Raw: same partition]
-    direction TB
-    B0[part-batch-0000]
-    B1[part-batch-0001]
-    B2[part-batch-0002]
-    B3[part-batch-0003]
-  end
-  subgraph after [Compacted: same rows]
-    P0[part-000.parquet]
-  end
-  before -->|compact| after
-```
+![Compaction: four micro-batches → one file](results/plots/diagram_compaction.png)
 
 | | Raw | Compacted |
 |--|-----:|----------:|
@@ -226,18 +201,7 @@ make bench-v3-step4
 
 These stack in every query engine that reads Parquet well:
 
-```mermaid
-flowchart TD
-  Q[SQL + filters] --> PP{Partition keys<br/>in WHERE?}
-  PP -->|yes| SKIP1[Skip other date/hour/service dirs]
-  PP -->|no| ALL1[Scan all partitions]
-  SKIP1 --> CP[Column projection]
-  ALL1 --> CP
-  CP --> RG{Row group min/max<br/>rules out data?}
-  RG -->|yes| SKIP2[Skip row groups]
-  RG -->|no| READ[Read column chunks]
-  SKIP2 --> READ
-```
+![Three skips: partition → column → row group](results/plots/diagram_pushdown.png)
 
 1. **Partition pruning** — skip whole `date/hour/service` directories when the filter matches path keys.
 2. **Column projection** — read only columns in the SELECT list, not the full row.
@@ -247,22 +211,7 @@ A query that matches all three on Hive-partitioned data can open **one file**, r
 
 **Which workloads get which skips:**
 
-```mermaid
-flowchart LR
-  subgraph fast [Tens of ms]
-    T[tight partition]
-    D[dashboard 1h]
-    I[incident 15m]
-  end
-  subgraph slow [Seconds to minutes]
-    F[full scan]
-    S[selective 5xx all data]
-    X[cross-day report]
-    TR[trace lookup]
-  end
-  fast -->|partition + column + row group| P[All three skips]
-  slow -->|partial or none| L[List / read most data]
-```
+![Fast vs slow workloads](results/plots/diagram_workloads.png)
 
 ---
 
@@ -352,4 +301,4 @@ The stack held up: same generator, same SQL, same MinIO, same DataFusion. What c
 - v2 benchmarks: [results/benchmarks.md](results/benchmarks.md)
 - v3 benchmarks: [results/benchmarks_v3.md](results/benchmarks_v3.md)
 - v3 plan: [tech_spec_v3.md](tech_spec_v3.md)
-- Charts: [results/plots/](results/plots/) (regenerate with `make plots`)
+- Charts + hand-drawn diagrams: [results/plots/](results/plots/) (regenerate with `make plots`)

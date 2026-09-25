@@ -236,10 +236,11 @@ bench-v3-step4: ## v3 concurrent raw + compacted → append Step 4 to benchmarks
 
 bench-all: bench-step1 bench-step2 ## Run full Day 3 benchmark suite
 
-plots: ## Regenerate README charts from results/benchmarks_v3.md
+plots: ## Regenerate README charts and hand-drawn diagrams
 	@command -v python3 >/dev/null || { echo "python3 required; pip install -r requirements-plots.txt"; exit 1; }
 	@python3 -m pip install -q -r requirements-plots.txt
 	@python3 scripts/plot_results.py
+	@python3 scripts/plot_diagrams.py
 
 demo: ## End-to-end demo (v3 compacted+incident if data exists, else v2)
 	@chmod +x scripts/demo.sh
